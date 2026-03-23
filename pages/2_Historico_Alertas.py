@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import folium
 from folium.plugins import HeatMap
-from streamlit_folium import st_folium
+import streamlit.components.v1 as components
 import plotly.express as px
 import os
 
@@ -197,7 +197,7 @@ else:
                     df_pel = df_heat[df_heat['Type'] == 'Peligro']
                     
                     # Muestrear individualmente para que el tráfico no entierre visualmente a los accidentes
-                    max_pts = 2000
+                    max_pts = 4000
                     if len(df_acc) > max_pts: df_acc = df_acc.sample(max_pts, random_state=42)
                     if len(df_traf) > max_pts: df_traf = df_traf.sample(max_pts, random_state=42)
                     if len(df_pel) > max_pts: df_pel = df_pel.sample(max_pts, random_state=42)
@@ -224,7 +224,8 @@ else:
                     
                     folium.LayerControl(collapsed=False).add_to(m_heat)
                     
-                    st_folium(m_heat, width=1200, height=600, returned_objects=[])
+                    # Renderizar mapa de forma nativa en HTML para evitar que los límites de serialización congelen Streamlit
+                    components.html(m_heat._repr_html_(), height=600)
                 else:
                     st.info("No hay coordenadas válidas para dibujar el mapa. Verifica las columnas de Location.")
             else:
