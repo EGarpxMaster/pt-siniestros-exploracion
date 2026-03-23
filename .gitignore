@@ -5,7 +5,7 @@ env/
 .env
 
 # Datos extraídos localmente (puede pesar mucho o tener credenciales/info sensible)
-data/
+# data/ (Ocultado temporalmente para permitirle a Github/Streamlit leer los datos)
 
 # Archivos de caché
 __pycache__/
