@@ -133,29 +133,26 @@ else:
                     
         with tab2:
             st.subheader("Matriz de Correlación: Siniestralidad vs Factores Viales (Por Día)")
-            st.markdown("Esta matriz mide la **coocurrencia diaria**. Nos indica si los días con más reportes de factores de riesgo (como Baches, Tráfico, Semáforos Descompuestos) coinciden matemáticamente con un aumento en la cantidad de Accidentes (Siniestralidad) ese mismo día.")
+            st.markdown("Esta matriz mide la **coocurrencia diaria**. Nos indica si los días con más reportes de factores de riesgo (como Peligro, Tráfico, Vía Cerrada) coinciden matemáticamente con un aumento en la cantidad de Accidentes (Siniestralidad) ese mismo día.")
             
-            if 'Subtype' in df.columns and 'Fecha_Parseada' in df.columns:
-                df_diario = pd.crosstab(df['Fecha_Parseada'], df['Subtype'])
+            if 'Type' in df.columns and 'Fecha_Parseada' in df.columns:
+                df_diario = pd.crosstab(df['Fecha_Parseada'], df['Type'])
                 
-                conteo_via_cerrada = df[df['Type'] == 'Vía Cerrada'].groupby('Fecha_Parseada').size()
-                df_diario['Vía Cerrada'] = conteo_via_cerrada
-                df_diario['Vía Cerrada'] = df_diario['Vía Cerrada'].fillna(0)
+                if 'Accidente' in df_diario.columns:
+                    df_diario = df_diario.rename(columns={'Accidente': '🔥 Siniestralidad'})
                 
-                df_diario['🔥 Siniestralidad'] = df_diario.get('Accidente Mayor', 0) + df_diario.get('Accidente Menor', 0)
-                
-                cols_factores = [col for col in ['Tráfico Pesado', 'Tráfico Detenido', 'Baches', 'Obras Viales', 'Semáforo Descompuesto', 'Inundación', 'Clima Severo / Lluvia', 'Peligro en Vía', 'Vía Cerrada', 'Objeto en Vía'] if col in df_diario.columns]
+                cols_factores = [col for col in ['Tráfico', 'Peligro', 'Vía Cerrada'] if col in df_diario.columns]
                 
                 if '🔥 Siniestralidad' in df_diario.columns and not df_diario.empty and len(cols_factores) > 0:
                     df_corr = df_diario[['🔥 Siniestralidad'] + cols_factores]
                     matriz = df_corr.corr()
                     
                     fig_corr = px.imshow(matriz, text_auto=".2f", aspect="auto", color_continuous_scale='RdBu_r', 
-                                        title="Correlación Diaria de Factores e Incidentes")
+                                        title="Correlación Diaria de Factores e Incidentes (Tipo General)")
                     st.plotly_chart(fig_corr, use_container_width=True)
-                    st.info("💡 **Toma de decisiones:** Si la celda que cruza 'Siniestralidad' con 'Baches' o 'Semáforo Descompuesto' muestra un valor rojo cercano a 1, significa que dichos factores catalizan los accidentes. Esto te permite priorizar la asignación de recursos preventivos o de mantenimiento.")
+                    st.info("💡 **Toma de decisiones:** Si la celda que cruza 'Siniestralidad' con 'Peligro' o 'Tráfico' muestra un valor rojo cercano a 1, significa que dichos factores detonan incidentes sistémicamente.")
                 else:
-                    st.warning("Faltan datos de siniestros o factores para construir la matriz comparativa diaria.")
+                    st.warning("Faltan datos de siniestros o factores generales para construir la matriz comparativa diaria.")
 
             st.divider()
 
