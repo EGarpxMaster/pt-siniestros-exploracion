@@ -1,0 +1,16 @@
+# Entornos Virtuales
+venv/
+.venv/
+env/
+.env
+
+# Datos extraídos localmente (puede pesar mucho o tener credenciales/info sensible)
+data/
+
+# Archivos de caché
+__pycache__/
+*.pyc
+
+# Logs y otros
+*.log
+.DS_Store
