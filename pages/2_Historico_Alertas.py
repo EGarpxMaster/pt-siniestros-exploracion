@@ -62,6 +62,12 @@ def load_and_process_data(filepath, limit=50000):
         }
         df['Type'] = df['Type'].map(mapa_tipos).fillna(df['Type'])
         
+        # Crear variable numérica binaria para correlación
+        df['Es_Accidente'] = (df['Type'] == 'Accidente').astype(int)
+        
+    if 'Fecha_Parseada' in df.columns:
+        df['Mes_Num'] = df['Fecha_Parseada'].dt.month
+
     if 'Subtype' in df.columns:
         mapa_subtipos = {
             'JAM_STAND_STILL_TRAFFIC': 'Tráfico Detenido',
@@ -94,7 +100,7 @@ else:
             
         st.write(f"### Análisis Dinámico sobre los primeros **{len(df)}** registros.")
         
-        tab1, tab2, tab3, tab4 = st.tabs(["📅 Análisis Temporal", "📊 Análisis Categórico", "🔥 Mapa de Calor", "🗂 Datos Procesados"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📅 Análisis Temporal", "📊 Análisis Categórico", "🔥 Mapa de Calor", "🗂 Datos Procesados", "🧮 Correlación"])
         
         with tab1:
             st.subheader("Distribución Temporal de los Eventos")
@@ -170,7 +176,41 @@ else:
         with tab4:
             st.subheader("Datos Procesados En Bruto")
             st.write("Vista a nivel de registro tras extraer fechas, latitudes y longitudes.")
-            st.dataframe(df.drop(columns=['Orden_Dia'], errors='ignore'), use_container_width=True)
+            # Ocultamos variables creadas solo para cálculos
+            st.dataframe(df.drop(columns=['Orden_Dia', 'Es_Accidente', 'Mes_Num'], errors='ignore'), use_container_width=True)
+
+        with tab5:
+            st.subheader("Matriz de Correlación: Siniestros vs Contexto")
+            st.markdown("Analiza la relación matemática entre las variables. Observamos qué factores están más vinculados matemáticamente con que un evento sea un **Accidente**.")
+            
+            # Buscar que existan nuestras variables numéricas
+            cols_req = ['Es_Accidente', 'Mes_Num', 'Orden_Dia', 'lat', 'lon']
+            cols_disp = [c for c in cols_req if c in df.columns]
+            
+            if len(cols_disp) > 1:
+                df_corr = df[cols_disp].dropna()
+                if not df_corr.empty and df_corr['Es_Accidente'].nunique() > 1:
+                    # Renombrar columnas para lectura amigable
+                    rename_dict = {
+                        'Es_Accidente': 'Es Accidente (0/1)',
+                        'Mes_Num': 'Mes',
+                        'Orden_Dia': 'Día de la Semana',
+                        'lat': 'Latitud',
+                        'lon': 'Longitud'
+                    }
+                    df_corr = df_corr.rename(columns=rename_dict)
+                    
+                    matriz_corr = df_corr.corr()
+                    fig_corr = px.imshow(matriz_corr, text_auto=".2f", aspect="auto", 
+                                         color_continuous_scale='RdBu_r', 
+                                         title="Coeficientes de Correlación de Pearson")
+                    st.plotly_chart(fig_corr, use_container_width=True)
+                    
+                    st.info("💡 **Cómo interpretar:** Valores cerca de **1** significan una alta relación directa. Cerca de **-1** alta relación inversa. Valores cercanos a **0** significan nula correlación lineal.")
+                else:
+                    st.warning("No hay suficientes variaciones en los datos para trazar una matriz (se requieren al menos incidentes de tipos mixtos).")
+            else:
+                st.warning("Faltan variables numéricas para calcular la correlación.")
 
     except Exception as e:
         st.error(f"Error procesando el histórico: {e}")
