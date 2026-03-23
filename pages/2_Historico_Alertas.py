@@ -147,25 +147,48 @@ else:
                 st.plotly_chart(fig_calles, use_container_width=True)
                 
         with tab3:
-            st.subheader("Mapa de Calor de Siniestralidad y Alertas")
-            st.markdown("Identifica los focos rojos y zonas de mayor concentración de problemas basándote en un mapeo de intensidad.")
+            st.subheader("Mapa de Calor: Capas de Correlación Geográfica")
+            st.markdown("El mapa muestra por defecto la **Capa de Accidentes**. Usa el control de capas (arriba a la derecha del mapa) para encender otras variables independientes como Tráfico o Peligros y visualizar su correlación espacial.")
             
             if 'lat' in df.columns and 'lon' in df.columns:
                 df_heat = df.dropna(subset=['lat', 'lon'])
                 if not df_heat.empty:
-                    # Folium se congela si hay demasiados puntos. Tomamos una muestra aleatoria para pintar.
-                    max_points = 3000
-                    if len(df_heat) > max_points:
-                        st.info(f"Mostrando una muestra representativa de {max_points} puntos (de {len(df_heat)}) para optimizar el rendimiento del mapa.")
-                        df_heat = df_heat.sample(max_points, random_state=42)
-                    
                     centro_lat = df_heat['lat'].mean()
                     centro_lon = df_heat['lon'].mean()
-                    
                     m_heat = folium.Map(location=[centro_lat, centro_lon], zoom_start=13)
-                    heat_data = df_heat[['lat', 'lon']].values.tolist()
                     
-                    HeatMap(heat_data, radius=15, blur=10).add_to(m_heat)
+                    # Separar por tipos para hacer capas independientes
+                    df_acc = df_heat[df_heat['Type'] == 'Accidente']
+                    df_traf = df_heat[df_heat['Type'] == 'Tráfico']
+                    df_pel = df_heat[df_heat['Type'] == 'Peligro']
+                    
+                    # Muestrear individualmente para que el tráfico no entierre visualmente a los accidentes
+                    max_pts = 2000
+                    if len(df_acc) > max_pts: df_acc = df_acc.sample(max_pts, random_state=42)
+                    if len(df_traf) > max_pts: df_traf = df_traf.sample(max_pts, random_state=42)
+                    if len(df_pel) > max_pts: df_pel = df_pel.sample(max_pts, random_state=42)
+                    
+                    # 1. Capa de Accidentes (Naranja/Rojo)
+                    fg_acc = folium.FeatureGroup(name="🔴 Accidentes (Base)", show=True)
+                    if not df_acc.empty:
+                        HeatMap(df_acc[['lat', 'lon']].values.tolist(), radius=15, blur=10).add_to(fg_acc)
+                    fg_acc.add_to(m_heat)
+                    
+                    # 2. Capa de Tráfico (Azules)
+                    fg_traf = folium.FeatureGroup(name="🔵 Tráfico", show=False)
+                    if not df_traf.empty:
+                        grad_traf = {0.4: 'cyan', 0.65: 'blue', 1: 'darkblue'}
+                        HeatMap(df_traf[['lat', 'lon']].values.tolist(), radius=15, blur=10, gradient=grad_traf).add_to(fg_traf)
+                    fg_traf.add_to(m_heat)
+                    
+                    # 3. Capa de Peligros (Morados)
+                    fg_pel = folium.FeatureGroup(name="🟣 Peligros", show=False)
+                    if not df_pel.empty:
+                        grad_pel = {0.4: 'plum', 0.65: 'magenta', 1: 'purple'}
+                        HeatMap(df_pel[['lat', 'lon']].values.tolist(), radius=15, blur=10, gradient=grad_pel).add_to(fg_pel)
+                    fg_pel.add_to(m_heat)
+                    
+                    folium.LayerControl(collapsed=False).add_to(m_heat)
                     
                     st_folium(m_heat, width=1200, height=600, returned_objects=[])
                 else:
