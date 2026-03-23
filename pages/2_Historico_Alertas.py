@@ -19,8 +19,8 @@ meses_es = {
 }
 
 @st.cache_data
-def load_and_process_data(filepath, limit=50000):
-    df = pd.read_csv(filepath, nrows=limit)
+def load_and_process_data(filepath):
+    df = pd.read_csv(filepath)
     
     # 1. Parsear Fechas Españolas
     if 'Date' in df.columns:
@@ -94,11 +94,10 @@ if not os.path.exists(data_path):
     st.info("El archivo `alertas_historico.csv` no se encuentra.")
 else:
     try:
-        limite = st.sidebar.slider("Registros a analizar (rendimiento):", 1000, 150000, 25000, 5000)
-        with st.spinner("Procesando histórico de alertas..."):
-            df = load_and_process_data(data_path, limite)
+        with st.spinner("Cargando y procesando la totalidad del histórico de alertas (utilizando caché para máximo rendimiento)..."):
+            df = load_and_process_data(data_path)
             
-        st.write(f"### Análisis Dinámico sobre los primeros **{len(df)}** registros.")
+        st.write(f"### Análisis Dinámico sobre el histórico completo de **{len(df):,}** registros.")
         
         tab1, tab2, tab3, tab4 = st.tabs(["Análisis Temporal", "Correlación y Categórico", "Mapa de Calor", "Datos Procesados"])
         
