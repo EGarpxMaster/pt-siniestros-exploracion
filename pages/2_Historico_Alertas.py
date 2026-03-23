@@ -100,9 +100,20 @@ else:
             
         st.write(f"### Análisis Dinámico sobre los primeros **{len(df)}** registros.")
         
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["📅 Análisis Temporal", "📊 Análisis Categórico", "🔥 Mapa de Calor", "🗂 Datos Procesados", "🧮 Correlación"])
+        tab1, tab2, tab3, tab4 = st.tabs(["📅 Análisis Temporal", "📊 Correlación y Categórico", "🔥 Mapa de Calor", "🗂 Datos Procesados"])
         
         with tab1:
+            st.subheader("Tendencia Histórica de Siniestralidad")
+            df_siniestros = df[df['Type'] == 'Accidente']
+            if not df_siniestros.empty and 'Fecha_Parseada' in df.columns:
+                conteo_diario = df_siniestros.groupby('Fecha_Parseada').size().reset_index(name='Accidentes')
+                conteo_diario = conteo_diario.sort_values('Fecha_Parseada')
+                fig_trend = px.line(conteo_diario, x='Fecha_Parseada', y='Accidentes', 
+                                    title="Evolución de Accidentes en el Tiempo (Serie de Tiempo)", markers=True)
+                st.plotly_chart(fig_trend, use_container_width=True)
+            else:
+                st.info("No hay suficientes datos de accidentes para trazar una tendencia histórica.")
+                
             st.subheader("Distribución Temporal de los Eventos")
             col_t1, col_t2 = st.columns(2)
             
@@ -121,6 +132,33 @@ else:
                     st.plotly_chart(fig_dia, use_container_width=True)
                     
         with tab2:
+            st.subheader("Matriz de Correlación: Siniestralidad vs Factores Viales (Por Día)")
+            st.markdown("Esta matriz mide la **coocurrencia diaria**. Nos indica si los días con más reportes de factores de riesgo (como Baches, Tráfico, Semáforos Descompuestos) coinciden matemáticamente con un aumento en la cantidad de Accidentes (Siniestralidad) ese mismo día.")
+            
+            if 'Subtype' in df.columns and 'Fecha_Parseada' in df.columns:
+                df_diario = pd.crosstab(df['Fecha_Parseada'], df['Subtype'])
+                
+                conteo_via_cerrada = df[df['Type'] == 'Vía Cerrada'].groupby('Fecha_Parseada').size()
+                df_diario['Vía Cerrada'] = conteo_via_cerrada
+                df_diario['Vía Cerrada'] = df_diario['Vía Cerrada'].fillna(0)
+                
+                df_diario['🔥 Siniestralidad'] = df_diario.get('Accidente Mayor', 0) + df_diario.get('Accidente Menor', 0)
+                
+                cols_factores = [col for col in ['Tráfico Pesado', 'Tráfico Detenido', 'Baches', 'Obras Viales', 'Semáforo Descompuesto', 'Inundación', 'Clima Severo / Lluvia', 'Peligro en Vía', 'Vía Cerrada', 'Objeto en Vía'] if col in df_diario.columns]
+                
+                if '🔥 Siniestralidad' in df_diario.columns and not df_diario.empty and len(cols_factores) > 0:
+                    df_corr = df_diario[['🔥 Siniestralidad'] + cols_factores]
+                    matriz = df_corr.corr()
+                    
+                    fig_corr = px.imshow(matriz, text_auto=".2f", aspect="auto", color_continuous_scale='RdBu_r', 
+                                        title="Correlación Diaria de Factores e Incidentes")
+                    st.plotly_chart(fig_corr, use_container_width=True)
+                    st.info("💡 **Toma de decisiones:** Si la celda que cruza 'Siniestralidad' con 'Baches' o 'Semáforo Descompuesto' muestra un valor rojo cercano a 1, significa que dichos factores catalizan los accidentes. Esto te permite priorizar la asignación de recursos preventivos o de mantenimiento.")
+                else:
+                    st.warning("Faltan datos de siniestros o factores para construir la matriz comparativa diaria.")
+
+            st.divider()
+
             st.subheader("Tipología y Clasificación de Alertas")
             col_c1, col_c2 = st.columns(2)
             
@@ -202,38 +240,7 @@ else:
             # Ocultamos variables creadas solo para cálculos
             st.dataframe(df.drop(columns=['Orden_Dia', 'Es_Accidente', 'Mes_Num'], errors='ignore'), use_container_width=True)
 
-        with tab5:
-            st.subheader("Matriz de Correlación: Siniestros vs Contexto")
-            st.markdown("Analiza la relación matemática entre las variables. Observamos qué factores están más vinculados matemáticamente con que un evento sea un **Accidente**.")
-            
-            # Buscar que existan nuestras variables numéricas
-            cols_req = ['Es_Accidente', 'Mes_Num', 'Orden_Dia', 'lat', 'lon']
-            cols_disp = [c for c in cols_req if c in df.columns]
-            
-            if len(cols_disp) > 1:
-                df_corr = df[cols_disp].dropna()
-                if not df_corr.empty and df_corr['Es_Accidente'].nunique() > 1:
-                    # Renombrar columnas para lectura amigable
-                    rename_dict = {
-                        'Es_Accidente': 'Es Accidente (0/1)',
-                        'Mes_Num': 'Mes',
-                        'Orden_Dia': 'Día de la Semana',
-                        'lat': 'Latitud',
-                        'lon': 'Longitud'
-                    }
-                    df_corr = df_corr.rename(columns=rename_dict)
-                    
-                    matriz_corr = df_corr.corr()
-                    fig_corr = px.imshow(matriz_corr, text_auto=".2f", aspect="auto", 
-                                         color_continuous_scale='RdBu_r', 
-                                         title="Coeficientes de Correlación de Pearson")
-                    st.plotly_chart(fig_corr, use_container_width=True)
-                    
-                    st.info("💡 **Cómo interpretar:** Valores cerca de **1** significan una alta relación directa. Cerca de **-1** alta relación inversa. Valores cercanos a **0** significan nula correlación lineal.")
-                else:
-                    st.warning("No hay suficientes variaciones en los datos para trazar una matriz (se requieren al menos incidentes de tipos mixtos).")
-            else:
-                st.warning("Faltan variables numéricas para calcular la correlación.")
+
 
     except Exception as e:
         st.error(f"Error procesando el histórico: {e}")
