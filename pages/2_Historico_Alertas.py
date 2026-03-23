@@ -6,8 +6,8 @@ from streamlit_folium import st_folium
 import plotly.express as px
 import os
 
-st.set_page_config(page_title="Deep Dive - Histórico de Alertas", page_icon="📉", layout="wide")
-st.title("📉 Análisis Profundo: Histórico de Alertas")
+st.set_page_config(page_title="Deep Dive - Histórico de Alertas", layout="wide")
+st.title("Análisis Profundo: Histórico de Alertas")
 st.markdown("Estudio detallado de factores de siniestralidad, análisis temporal, categórico y geográfico basándonos en el `alertas_historico.csv`.")
 
 data_path = os.path.join("data", "semaforos_PT", "alertas_historico.csv")
@@ -100,7 +100,7 @@ else:
             
         st.write(f"### Análisis Dinámico sobre los primeros **{len(df)}** registros.")
         
-        tab1, tab2, tab3, tab4 = st.tabs(["📅 Análisis Temporal", "📊 Correlación y Categórico", "🔥 Mapa de Calor", "🗂 Datos Procesados"])
+        tab1, tab2, tab3, tab4 = st.tabs(["Análisis Temporal", "Correlación y Categórico", "Mapa de Calor", "Datos Procesados"])
         
         with tab1:
             st.subheader("Tendencia Histórica de Siniestralidad")
@@ -133,29 +133,24 @@ else:
                     
         with tab2:
             st.subheader("Matriz de Correlación: Siniestralidad vs Factores Viales (Por Día)")
-            st.markdown("Esta matriz mide la **coocurrencia diaria**. Nos indica si los días con más reportes de factores de riesgo puntuales coinciden matemáticamente con un aumento en la cantidad de Accidentes (Siniestralidad) ese mismo día.")
+            st.markdown("Esta matriz mide la coocurrencia diaria. Nos indica si los días con más reportes de factores de riesgo coinciden de forma estadística con un aumento en la cantidad de Accidentes (Siniestralidad) ese mismo día.")
             
-            if 'Type' in df.columns and 'Subtype' in df.columns and 'Fecha_Parseada' in df.columns:
-                df_tipo = pd.crosstab(df['Fecha_Parseada'], df['Type'])
-                df_subtipo = pd.crosstab(df['Fecha_Parseada'], df['Subtype'])
-                
-                df_diario = pd.concat([df_tipo, df_subtipo], axis=1).fillna(0)
-                df_diario = df_diario.loc[:, ~df_diario.columns.duplicated()]
+            if 'Type' in df.columns and 'Fecha_Parseada' in df.columns:
+                df_diario = pd.crosstab(df['Fecha_Parseada'], df['Type'])
                 
                 if 'Accidente' in df_diario.columns:
-                    df_diario = df_diario.rename(columns={'Accidente': '🔥 Siniestralidad'})
+                    df_diario = df_diario.rename(columns={'Accidente': 'Siniestralidad'})
                 
-                cols_disponibles = ['Tráfico', 'Peligro', 'Vía Cerrada', 'Baches', 'Clima Severo / Lluvia']
-                cols_factores = [col for col in cols_disponibles if col in df_diario.columns]
+                cols_factores = [col for col in ['Tráfico', 'Peligro', 'Vía Cerrada'] if col in df_diario.columns]
                 
-                if '🔥 Siniestralidad' in df_diario.columns and not df_diario.empty and len(cols_factores) > 0:
-                    df_corr = df_diario[['🔥 Siniestralidad'] + cols_factores]
+                if 'Siniestralidad' in df_diario.columns and not df_diario.empty and len(cols_factores) > 0:
+                    df_corr = df_diario[['Siniestralidad'] + cols_factores]
                     matriz = df_corr.corr()
                     
                     fig_corr = px.imshow(matriz, text_auto=".2f", aspect="auto", color_continuous_scale='RdBu_r', 
-                                        title="Correlación Diaria (Generales y Específicos)")
+                                        title="Correlación Diaria (Factores Generales)")
                     st.plotly_chart(fig_corr, use_container_width=True)
-                    st.info("💡 **Toma de decisiones:** Identifica si factores de tipo general (Tráfico) o subtipos específicos (Baches, Clima) detonan incidentes de manera sistémica.")
+                    st.info("Toma de decisiones: Valores positivos cercanos a 1 indican que factores de tipo general (Tráfico, Peligros) presentan una correlación directa fuerte con los siniestros de manera sistémica.")
                 else:
                     st.warning("Faltan datos de siniestros o factores generales para construir la matriz diaria.")
 
@@ -188,7 +183,7 @@ else:
                 
         with tab3:
             st.subheader("Mapa de Calor: Capas de Correlación Geográfica")
-            st.markdown("El mapa muestra por defecto la **Capa de Accidentes**. Usa el control de capas (arriba a la derecha del mapa) para encender otras variables independientes como Tráfico o Peligros y visualizar su correlación espacial.")
+            st.markdown("El mapa muestra por defecto la Capa de Accidentes. Usa el control de capas (arriba a la derecha del mapa) para encender otras variables independientes como Tráfico o Peligros y visualizar su correlación espacial.")
             
             if 'lat' in df.columns and 'lon' in df.columns:
                 df_heat = df.dropna(subset=['lat', 'lon'])
@@ -208,21 +203,21 @@ else:
                     if len(df_traf) > max_pts: df_traf = df_traf.sample(max_pts, random_state=42)
                     if len(df_pel) > max_pts: df_pel = df_pel.sample(max_pts, random_state=42)
                     
-                    # 1. Capa de Accidentes (Naranja/Rojo)
-                    fg_acc = folium.FeatureGroup(name="🔴 Accidentes (Base)", show=True)
+                    # 1. Capa de Accidentes
+                    fg_acc = folium.FeatureGroup(name="Accidentes (Base)", show=True)
                     if not df_acc.empty:
                         HeatMap(df_acc[['lat', 'lon']].values.tolist(), radius=15, blur=10).add_to(fg_acc)
                     fg_acc.add_to(m_heat)
                     
-                    # 2. Capa de Tráfico (Azules)
-                    fg_traf = folium.FeatureGroup(name="🔵 Tráfico", show=False)
+                    # 2. Capa de Tráfico
+                    fg_traf = folium.FeatureGroup(name="Tráfico", show=False)
                     if not df_traf.empty:
                         grad_traf = {0.4: 'cyan', 0.65: 'blue', 1: 'darkblue'}
                         HeatMap(df_traf[['lat', 'lon']].values.tolist(), radius=15, blur=10, gradient=grad_traf).add_to(fg_traf)
                     fg_traf.add_to(m_heat)
                     
-                    # 3. Capa de Peligros (Morados)
-                    fg_pel = folium.FeatureGroup(name="🟣 Peligros", show=False)
+                    # 3. Capa de Peligros
+                    fg_pel = folium.FeatureGroup(name="Peligros", show=False)
                     if not df_pel.empty:
                         grad_pel = {0.4: 'plum', 0.65: 'magenta', 1: 'purple'}
                         HeatMap(df_pel[['lat', 'lon']].values.tolist(), radius=15, blur=10, gradient=grad_pel).add_to(fg_pel)
