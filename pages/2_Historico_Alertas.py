@@ -48,9 +48,39 @@ def load_and_process_data(filepath, limit=50000):
 
     # 2. Parsear Coordenadas "Point(lon lat)"
     if 'Location' in df.columns:
-        coords = df['Location'].str.extract(r'Point\(([-.\d]+)\s+([-.\d]+)\)')
+        coords = df['Location'].astype(str).str.extract(r'(?i)Point\(([-.\d]+)\s+([-.\d]+)\)')
         df['lon'] = coords[0].astype(float)
         df['lat'] = coords[1].astype(float)
+
+    # 3. Traducir Tipos y Subtipos
+    if 'Type' in df.columns:
+        mapa_tipos = {
+            'JAM': 'Tráfico',
+            'HAZARD': 'Peligro',
+            'ACCIDENT': 'Accidente',
+            'ROAD_CLOSED': 'Vía Cerrada'
+        }
+        df['Type'] = df['Type'].map(mapa_tipos).fillna(df['Type'])
+        
+    if 'Subtype' in df.columns:
+        mapa_subtipos = {
+            'JAM_STAND_STILL_TRAFFIC': 'Tráfico Detenido',
+            'JAM_HEAVY_TRAFFIC': 'Tráfico Pesado',
+            'JAM_MODERATE_TRAFFIC': 'Tráfico Moderado',
+            'JAM_LIGHT_TRAFFIC': 'Tráfico Ligero',
+            'HAZARD_ON_ROAD_POT_HOLE': 'Baches',
+            'HAZARD_ON_SHOULDER_CAR_STOPPED': 'Auto Detenido (Acotamiento)',
+            'HAZARD_ON_ROAD_CAR_STOPPED': 'Auto Detenido',
+            'HAZARD_ON_ROAD': 'Peligro en Vía',
+            'HAZARD_ON_ROAD_CONSTRUCTION': 'Obras Viales',
+            'HAZARD_ON_ROAD_OBJECT': 'Objeto en Vía',
+            'HAZARD_ON_ROAD_TRAFFIC_LIGHT_FAULT': 'Semáforo Descompuesto',
+            'HAZARD_WEATHER_FLOOD': 'Inundación',
+            'HAZARD_WEATHER': 'Clima Severo / Lluvia',
+            'ACCIDENT_MAJOR': 'Accidente Mayor',
+            'ACCIDENT_MINOR': 'Accidente Menor'
+        }
+        df['Subtype'] = df['Subtype'].map(mapa_subtipos).fillna(df['Subtype'])
 
     return df
 
@@ -117,15 +147,21 @@ else:
             if 'lat' in df.columns and 'lon' in df.columns:
                 df_heat = df.dropna(subset=['lat', 'lon'])
                 if not df_heat.empty:
+                    # Folium se congela si hay demasiados puntos. Tomamos una muestra aleatoria para pintar.
+                    max_points = 3000
+                    if len(df_heat) > max_points:
+                        st.info(f"Mostrando una muestra representativa de {max_points} puntos (de {len(df_heat)}) para optimizar el rendimiento del mapa.")
+                        df_heat = df_heat.sample(max_points, random_state=42)
+                    
                     centro_lat = df_heat['lat'].mean()
                     centro_lon = df_heat['lon'].mean()
                     
                     m_heat = folium.Map(location=[centro_lat, centro_lon], zoom_start=13)
-                    heat_data = [[row['lat'], row['lon']] for index, row in df_heat.iterrows()]
+                    heat_data = df_heat[['lat', 'lon']].values.tolist()
                     
                     HeatMap(heat_data, radius=15, blur=10).add_to(m_heat)
                     
-                    st_folium(m_heat, width=1200, height=600)
+                    st_folium(m_heat, width=1200, height=600, returned_objects=[])
                 else:
                     st.info("No hay coordenadas válidas para dibujar el mapa. Verifica las columnas de Location.")
             else:
