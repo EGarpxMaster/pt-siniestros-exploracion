@@ -108,45 +108,83 @@ else:
             if not df_siniestros.empty and 'Fecha_Parseada' in df.columns:
                 max_date = df_siniestros['Fecha_Parseada'].max()
                 
+                max_date_only = max_date.date()
+                min_date_only = df_siniestros['Fecha_Parseada'].min().date()
+                
                 # Opciones de filtrado
-                opciones_periodo = ["Último Mes", "Último Trimestre", "Último Semestre", "Último Año", "Histórico Completo"]
+                opciones_periodo = ["Último Mes", "Último Trimestre", "Último Semestre", "Último Año", "Histórico Completo", "Personalizado"]
                 
-                col_filtro, col_vacia = st.columns([1, 3])
+                def on_date_change():
+                    # Si el usuario hace clic o modifica el rango, cambiamos el selector a Personalizado
+                    st.session_state.periodo_sel = "Personalizado"
+
+                col_filtro, col_fechas = st.columns(2)
+                
                 with col_filtro:
-                    periodo_sel = st.selectbox("Periodo de Análisis (Carga por Lotes)", options=opciones_periodo, index=0)
+                    periodo_sel = st.selectbox("Periodo Rápidos", options=opciones_periodo, key='periodo_sel')
                 
-                # Aplicar filtro de fecha relativo al máximo existente
+                # Determinar rango de fechas sugerido por el selector
                 if periodo_sel == "Último Mes":
-                    fecha_inicio = max_date - pd.DateOffset(months=1)
+                    current_dates = [(max_date - pd.DateOffset(months=1)).date(), max_date_only]
                 elif periodo_sel == "Último Trimestre":
-                    fecha_inicio = max_date - pd.DateOffset(months=3)
+                    current_dates = [(max_date - pd.DateOffset(months=3)).date(), max_date_only]
                 elif periodo_sel == "Último Semestre":
-                    fecha_inicio = max_date - pd.DateOffset(months=6)
+                    current_dates = [(max_date - pd.DateOffset(months=6)).date(), max_date_only]
                 elif periodo_sel == "Último Año":
-                    fecha_inicio = max_date - pd.DateOffset(years=1)
+                    current_dates = [(max_date - pd.DateOffset(years=1)).date(), max_date_only]
+                elif periodo_sel == "Histórico Completo":
+                    current_dates = [min_date_only, max_date_only]
+                else: # Personalizado
+                    if 'rango_fechas_key' in st.session_state and st.session_state.rango_fechas_key:
+                        current_dates = st.session_state.rango_fechas_key
+                    else:
+                        current_dates = [min_date_only, max_date_only]
+                    
+                # Validar que def_start no sea menor al mínimo real (Streamlit crashea si sales de límites)
+                if isinstance(current_dates, tuple) or isinstance(current_dates, list):
+                    current_dates = [max(min_date_only, min(max_date_only, d)) for d in current_dates]
                 else:
-                    fecha_inicio = None
+                    current_dates = [max(min_date_only, min(max_date_only, current_dates))]
                 
-                if fecha_inicio is not None:
-                    df_siniestros_plot = df_siniestros[df_siniestros['Fecha_Parseada'] >= fecha_inicio]
+                # Si el usuario escogió un periodo rápido (no personalizado), forzamos sobreescribir
+                # el input de fechas para que borre la selección manual anterior
+                if periodo_sel != "Personalizado":
+                    st.session_state['rango_fechas_key'] = current_dates
+                
+                with col_fechas:
+                    # Se usa on_change y key para sincronizar estado visual y selector
+                    rango_fechas = st.date_input("Rango Observado", 
+                                                 value=current_dates, 
+                                                 min_value=min_date_only, 
+                                                 max_value=max_date_only,
+                                                 key='rango_fechas_key',
+                                                 on_change=on_date_change)
+                
+                if len(rango_fechas) == 2:
+                    fecha_inicio = pd.to_datetime(rango_fechas[0])
+                    fecha_fin = pd.to_datetime(rango_fechas[1])
+                    df_siniestros_plot = df_siniestros[(df_siniestros['Fecha_Parseada'] >= fecha_inicio) & (df_siniestros['Fecha_Parseada'] <= fecha_fin)]
                 else:
                     df_siniestros_plot = df_siniestros
 
-                conteo_diario = df_siniestros_plot.groupby('Fecha_Parseada').size().reset_index(name='Accidentes')
-                conteo_diario = conteo_diario.sort_values('Fecha_Parseada')
-                
-                # Suavizar el ruido con una media móvil (7 días)
-                conteo_diario['Tendencia Suavizada (7 días)'] = conteo_diario['Accidentes'].rolling(window=7, min_periods=1).mean()
-                
-                fig_trend = px.line(conteo_diario, x='Fecha_Parseada', y=['Accidentes', 'Tendencia Suavizada (7 días)'], 
-                                    title=f"Evolución de Accidentes - {periodo_sel}", 
-                                    labels={'value': 'Total de Accidentes', 'variable': 'Métrica'},
-                                    color_discrete_sequence=['#A0C4FF', '#2B65E3'])
-                
-                fig_trend.update_traces(opacity=0.4, selector=dict(name='Accidentes'))
-                fig_trend.update_traces(line=dict(width=3), line_shape='spline', selector=dict(name='Tendencia Suavizada (7 días)'))
-                
-                st.plotly_chart(fig_trend, use_container_width=True)
+                if not df_siniestros_plot.empty:
+                    conteo_diario = df_siniestros_plot.groupby('Fecha_Parseada').size().reset_index(name='Accidentes')
+                    conteo_diario = conteo_diario.sort_values('Fecha_Parseada')
+                    
+                    # Suavizar el ruido con una media móvil (7 días)
+                    conteo_diario['Tendencia Suavizada'] = conteo_diario['Accidentes'].rolling(window=7, min_periods=1).mean()
+                    
+                    fig_trend = px.line(conteo_diario, x='Fecha_Parseada', y=['Accidentes', 'Tendencia Suavizada'], 
+                                        title=f"Evolución de Accidentes", 
+                                        labels={'value': 'Total de Accidentes', 'variable': 'Métrica'},
+                                        color_discrete_sequence=['#A0C4FF', '#2B65E3'])
+                    
+                    fig_trend.update_traces(opacity=0.4, selector=dict(name='Accidentes'))
+                    fig_trend.update_traces(line=dict(width=3), line_shape='spline', selector=dict(name='Tendencia Suavizada'))
+                    
+                    st.plotly_chart(fig_trend, use_container_width=True)
+                else:
+                    st.info("No hay registros en el rango de fechas seleccionado.")
             else:
                 st.info("No hay suficientes datos de accidentes para trazar una tendencia histórica.")
                 
@@ -154,9 +192,9 @@ else:
             col_t1, col_t2 = st.columns(2)
             
             with col_t1:
-                if 'Mes' in df.columns:
-                    conteo_mes = df['Mes'].value_counts().reset_index()
-                    conteo_mes.columns = ['Mes', 'Cantidad']
+                if 'Mes' in df.columns and 'Mes_Num' in df.columns:
+                    conteo_mes = df.groupby(['Mes', 'Mes_Num']).size().reset_index(name='Cantidad')
+                    conteo_mes = conteo_mes.sort_values('Mes_Num')
                     fig_mes = px.bar(conteo_mes, x='Mes', y='Cantidad', title="Eventos por Mes", color='Cantidad', color_continuous_scale='Blues')
                     st.plotly_chart(fig_mes, use_container_width=True)
             
