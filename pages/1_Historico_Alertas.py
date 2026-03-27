@@ -45,6 +45,7 @@ def load_and_process_data(filepath):
         df['Mes'] = df['Fecha_Parseada'].dt.month.map(meses_nombres)
         df['Dia_Semana'] = df['Fecha_Parseada'].dt.dayofweek.map(dias_nombres)
         df['Orden_Dia'] = df['Fecha_Parseada'].dt.dayofweek # Para ordenar en gráficas
+        df['Trimestre'] = df['Fecha_Parseada'].dt.to_period('Q').astype(str)
 
     # 2. Parsear Coordenadas "Point(lon lat)"
     if 'Location' in df.columns:
@@ -103,12 +104,48 @@ else:
         
         with tab1:
             st.subheader("Tendencia Histórica de Siniestralidad")
-            df_siniestros = df[df['Type'] == 'Accidente']
+            df_siniestros = df[df['Type'] == 'Accidente'].dropna(subset=['Fecha_Parseada'])
             if not df_siniestros.empty and 'Fecha_Parseada' in df.columns:
-                conteo_diario = df_siniestros.groupby('Fecha_Parseada').size().reset_index(name='Accidentes')
+                max_date = df_siniestros['Fecha_Parseada'].max()
+                
+                # Opciones de filtrado
+                opciones_periodo = ["Último Mes", "Último Trimestre", "Último Semestre", "Último Año", "Histórico Completo"]
+                
+                col_filtro, col_vacia = st.columns([1, 3])
+                with col_filtro:
+                    periodo_sel = st.selectbox("Periodo de Análisis (Carga por Lotes)", options=opciones_periodo, index=0)
+                
+                # Aplicar filtro de fecha relativo al máximo existente
+                if periodo_sel == "Último Mes":
+                    fecha_inicio = max_date - pd.DateOffset(months=1)
+                elif periodo_sel == "Último Trimestre":
+                    fecha_inicio = max_date - pd.DateOffset(months=3)
+                elif periodo_sel == "Último Semestre":
+                    fecha_inicio = max_date - pd.DateOffset(months=6)
+                elif periodo_sel == "Último Año":
+                    fecha_inicio = max_date - pd.DateOffset(years=1)
+                else:
+                    fecha_inicio = None
+                
+                if fecha_inicio is not None:
+                    df_siniestros_plot = df_siniestros[df_siniestros['Fecha_Parseada'] >= fecha_inicio]
+                else:
+                    df_siniestros_plot = df_siniestros
+
+                conteo_diario = df_siniestros_plot.groupby('Fecha_Parseada').size().reset_index(name='Accidentes')
                 conteo_diario = conteo_diario.sort_values('Fecha_Parseada')
-                fig_trend = px.line(conteo_diario, x='Fecha_Parseada', y='Accidentes', 
-                                    title="Evolución de Accidentes en el Tiempo (Serie de Tiempo)", markers=True)
+                
+                # Suavizar el ruido con una media móvil (7 días)
+                conteo_diario['Tendencia Suavizada (7 días)'] = conteo_diario['Accidentes'].rolling(window=7, min_periods=1).mean()
+                
+                fig_trend = px.line(conteo_diario, x='Fecha_Parseada', y=['Accidentes', 'Tendencia Suavizada (7 días)'], 
+                                    title=f"Evolución de Accidentes - {periodo_sel}", 
+                                    labels={'value': 'Total de Accidentes', 'variable': 'Métrica'},
+                                    color_discrete_sequence=['#A0C4FF', '#2B65E3'])
+                
+                fig_trend.update_traces(opacity=0.4, selector=dict(name='Accidentes'))
+                fig_trend.update_traces(line=dict(width=3), line_shape='spline', selector=dict(name='Tendencia Suavizada (7 días)'))
+                
                 st.plotly_chart(fig_trend, use_container_width=True)
             else:
                 st.info("No hay suficientes datos de accidentes para trazar una tendencia histórica.")
@@ -127,7 +164,7 @@ else:
                 if 'Dia_Semana' in df.columns:
                     conteo_dia = df.groupby(['Dia_Semana', 'Orden_Dia']).size().reset_index(name='Cantidad')
                     conteo_dia = conteo_dia.sort_values('Orden_Dia')
-                    fig_dia = px.bar(conteo_dia, x='Dia_Semana', y='Cantidad', title="Eventos por Día de la Semana", color='Cantidad', color_continuous_scale='Oranges')
+                    fig_dia = px.bar(conteo_dia, x='Dia_Semana', y='Cantidad', title="Eventos por Día de la Semana", color='Cantidad', color_continuous_scale='Blues')
                     st.plotly_chart(fig_dia, use_container_width=True)
                     
         with tab2:
