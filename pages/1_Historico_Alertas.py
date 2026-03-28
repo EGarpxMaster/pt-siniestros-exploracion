@@ -22,8 +22,24 @@ meses_es = {
 def load_and_process_data(filepath):
     df = pd.read_csv(filepath)
     
-    # 1. Parsear Fechas Españolas
-    if 'Date' in df.columns:
+    # 1. Utilizar las columnas optimizadas por la Vista SQL si existen
+    if 'Type_Traducido' in df.columns:
+        df['Type'] = df['Type_Traducido']
+    if 'Subtype_Traducido' in df.columns:
+        df['Subtype'] = df['Subtype_Traducido']
+        
+    # Si por alguna razon falla la vista, hacemos fallback legacy para coords
+    if 'lon' not in df.columns and 'Location' in df.columns:
+        coords = df['Location'].astype(str).str.extract(r'(?i)Point\(([-.\d]+)\s+([-.\d]+)\)')
+        df['lon'] = coords[0].astype(float)
+        df['lat'] = coords[1].astype(float)
+        
+    # Variables derivadas de tiempo
+    if 'Fecha_Parseada' in df.columns:
+        # La vista SQL ya entrega la fecha parseada
+        df['Fecha_Parseada'] = pd.to_datetime(df['Fecha_Parseada'], errors='coerce')
+    elif 'Date' in df.columns:
+        # Fallback si no está la vista SQL
         def parse_date(d_str):
             try:
                 parts = str(d_str).lower().strip().split()
@@ -35,59 +51,39 @@ def load_and_process_data(filepath):
                 return pd.to_datetime(d_str, errors='coerce')
             except:
                 return pd.NaT
-        
         df['Fecha_Parseada'] = df['Date'].apply(parse_date)
         
+    if 'Type' in df.columns:
+        # Fallback si Type_Traducido no estaba
+        if 'Type_Traducido' not in df.columns:
+            mapa_tipos = {'JAM': 'Tráfico', 'HAZARD': 'Peligro', 'ACCIDENT': 'Accidente', 'ROAD_CLOSED': 'Vía Cerrada'}
+            df['Type'] = df['Type'].map(mapa_tipos).fillna(df['Type'])
+        
+        df['Es_Accidente'] = (df['Type'] == 'Accidente').astype(int)
+        
+    if 'Subtype' in df.columns and 'Subtype_Traducido' not in df.columns:
+        mapa_subtipos = {
+            'JAM_STAND_STILL_TRAFFIC': 'Tráfico Detenido', 'JAM_HEAVY_TRAFFIC': 'Tráfico Pesado',
+            'JAM_MODERATE_TRAFFIC': 'Tráfico Moderado', 'JAM_LIGHT_TRAFFIC': 'Tráfico Ligero',
+            'HAZARD_ON_ROAD_POT_HOLE': 'Baches', 'HAZARD_ON_SHOULDER_CAR_STOPPED': 'Auto Detenido (Acotamiento)',
+            'HAZARD_ON_ROAD_CAR_STOPPED': 'Auto Detenido', 'HAZARD_ON_ROAD': 'Peligro en Vía',
+            'HAZARD_ON_ROAD_CONSTRUCTION': 'Obras Viales', 'HAZARD_ON_ROAD_OBJECT': 'Objeto en Vía',
+            'HAZARD_ON_ROAD_TRAFFIC_LIGHT_FAULT': 'Semáforo Descompuesto', 'HAZARD_WEATHER_FLOOD': 'Inundación',
+            'HAZARD_WEATHER': 'Clima Severo / Lluvia', 'ACCIDENT_MAJOR': 'Accidente Mayor', 'ACCIDENT_MINOR': 'Accidente Menor'
+        }
+        df['Subtype'] = df['Subtype'].map(mapa_subtipos).fillna(df['Subtype'])
+
+    # Creación de variables estandarizadas para dashboards (necesitan la fecha parseada si o si)
+    if 'Fecha_Parseada' in df.columns:
         meses_nombres = {1:'Enero', 2:'Febrero', 3:'Marzo', 4:'Abril', 5:'Mayo', 6:'Junio', 
                          7:'Julio', 8:'Agosto', 9:'Septiembre', 10:'Octubre', 11:'Noviembre', 12:'Diciembre'}
         dias_nombres = {0:'Lunes', 1:'Martes', 2:'Miércoles', 3:'Jueves', 4:'Viernes', 5:'Sábado', 6:'Domingo'}
         
         df['Mes'] = df['Fecha_Parseada'].dt.month.map(meses_nombres)
-        df['Dia_Semana'] = df['Fecha_Parseada'].dt.dayofweek.map(dias_nombres)
-        df['Orden_Dia'] = df['Fecha_Parseada'].dt.dayofweek # Para ordenar en gráficas
-        df['Trimestre'] = df['Fecha_Parseada'].dt.to_period('Q').astype(str)
-
-    # 2. Parsear Coordenadas "Point(lon lat)"
-    if 'Location' in df.columns:
-        coords = df['Location'].astype(str).str.extract(r'(?i)Point\(([-.\d]+)\s+([-.\d]+)\)')
-        df['lon'] = coords[0].astype(float)
-        df['lat'] = coords[1].astype(float)
-
-    # 3. Traducir Tipos y Subtipos
-    if 'Type' in df.columns:
-        mapa_tipos = {
-            'JAM': 'Tráfico',
-            'HAZARD': 'Peligro',
-            'ACCIDENT': 'Accidente',
-            'ROAD_CLOSED': 'Vía Cerrada'
-        }
-        df['Type'] = df['Type'].map(mapa_tipos).fillna(df['Type'])
-        
-        # Crear variable numérica binaria para correlación
-        df['Es_Accidente'] = (df['Type'] == 'Accidente').astype(int)
-        
-    if 'Fecha_Parseada' in df.columns:
         df['Mes_Num'] = df['Fecha_Parseada'].dt.month
-
-    if 'Subtype' in df.columns:
-        mapa_subtipos = {
-            'JAM_STAND_STILL_TRAFFIC': 'Tráfico Detenido',
-            'JAM_HEAVY_TRAFFIC': 'Tráfico Pesado',
-            'JAM_MODERATE_TRAFFIC': 'Tráfico Moderado',
-            'JAM_LIGHT_TRAFFIC': 'Tráfico Ligero',
-            'HAZARD_ON_ROAD_POT_HOLE': 'Baches',
-            'HAZARD_ON_SHOULDER_CAR_STOPPED': 'Auto Detenido (Acotamiento)',
-            'HAZARD_ON_ROAD_CAR_STOPPED': 'Auto Detenido',
-            'HAZARD_ON_ROAD': 'Peligro en Vía',
-            'HAZARD_ON_ROAD_CONSTRUCTION': 'Obras Viales',
-            'HAZARD_ON_ROAD_OBJECT': 'Objeto en Vía',
-            'HAZARD_ON_ROAD_TRAFFIC_LIGHT_FAULT': 'Semáforo Descompuesto',
-            'HAZARD_WEATHER_FLOOD': 'Inundación',
-            'HAZARD_WEATHER': 'Clima Severo / Lluvia',
-            'ACCIDENT_MAJOR': 'Accidente Mayor',
-            'ACCIDENT_MINOR': 'Accidente Menor'
-        }
-        df['Subtype'] = df['Subtype'].map(mapa_subtipos).fillna(df['Subtype'])
+        df['Dia_Semana'] = df['Fecha_Parseada'].dt.dayofweek.map(dias_nombres)
+        df['Orden_Dia'] = df['Fecha_Parseada'].dt.dayofweek
+        df['Trimestre'] = df['Fecha_Parseada'].dt.to_period('Q').astype(str)
 
     return df
 
