@@ -17,31 +17,9 @@ else:
     try:
         df = pd.read_csv(data_path)
         
-        # Procesar geometría PostGIS WKB a lat/lon
-        if 'geometry' in df.columns:
-            st.write("Decodificando geometrías espaciales de PostGIS...")
-            
-            latitudes = []
-            longitudes = []
-            validos = 0
-            
-            for index, row in df.iterrows():
-                try:
-                    # loads from hex converts PostGIS EWKB hex string to a Shapely geometry object
-                    geom = wkb.loads(str(row['geometry']), hex=True)
-                    # En formato típico QGIS/PostGIS (EPSG:4326), X es Longitud y Y es Latitud
-                    latitudes.append(geom.y)
-                    longitudes.append(geom.x)
-                    validos += 1
-                except Exception as e:
-                    latitudes.append(None)
-                    longitudes.append(None)
-                    
-            df['lat'] = latitudes
-            df['lon'] = longitudes
-            
-            # Filtramos los que sí se decodificaron exitosamente
+        if 'lat' in df.columns and 'lon' in df.columns:
             df_mapa = df.dropna(subset=['lat', 'lon'])
+            validos = len(df_mapa)
             
             st.write(f"Cargados **{validos}** semáforos operables en el mapa de un total de {len(df)}.")
             
@@ -54,20 +32,24 @@ else:
                 
                 for idx, row in df_mapa.iterrows():
                     identificador = row.get('Identificador', row.get('id', 'Desconocido'))
-                    popup_text = f"<b>Semaforo ID:</b> {identificador}"
+                    ubicacion = row.get('ubicacion', 'Ubicación no disponible')
+                    popup_text = f"<b>Semaforo ID:</b> {identificador}<br><br><b>Ubicación:</b> {ubicacion}"
                     
                     folium.Marker(
                         location=[row['lat'], row['lon']],
                         popup=folium.Popup(popup_text, max_width=300),
-                        icon=folium.Icon(color='red', icon='info-sign')
+                        icon=folium.DivIcon(
+                            html='<div style="font-size: 24px;">🚦</div>',
+                            icon_anchor=(12, 12)
+                        )
                     ).add_to(m)
                     
                 st_folium(m, width=1200, height=600)
             else:
-                st.warning("No se logró decodificar ninguna coordenada válida.")
+                st.warning("No se logró localizar ninguna coordenada válida.")
             
         else:
-            st.warning("El dataset no contiene la columna 'geometry'. Revisar estructura:")
+            st.warning("El dataset no contiene las columnas preprocesadas 'lat' y 'lon'. Revisar estructura:")
             st.dataframe(df.head())
 
     except Exception as e:

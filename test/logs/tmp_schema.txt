@@ -1,0 +1,30 @@
+﻿=== alertas ===
+                      column_name                 data_type
+0                     id_registro                    bigint
+1                            pais                      text
+2                          ciudad                      text
+3           clasificacion_reporte                   integer
+4           reporte_por_municipio                   boolean
+5                       confianza                   integer
+6                      fiabilidad                   integer
+7                            tipo                      text
+8   identificador_unico_universal                      text
+9                     tipo_camino                   integer
+10                         magvar                   integer
+11                        subtipo                      text
+12                          calle                      text
+13                          fecha  timestamp with time zone
+14                       longitud          double precision
+15                        latitud          double precision
+16                    descripcion                      text
+17                    fecha_carga  timestamp with time zone
+
+=== alertas_historico ===
+  column_name data_type
+0        Date      text
+1     Country      text
+2        City      text
+3      Street      text
+4        Type      text
+5     Subtype      text
+6    Location      text

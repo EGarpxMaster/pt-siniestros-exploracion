@@ -1,0 +1,60 @@
+=== COLUMNAS Y TIPOS ===
+  id_registro: int64
+  pais: object
+  ciudad: object
+  clasificacion_reporte: int64
+  reporte_por_municipio: bool
+  confianza: int64
+  fiabilidad: int64
+  tipo: object
+  identificador_unico_universal: object
+  tipo_camino: int64
+  magvar: int64
+  subtipo: object
+  calle: object
+  fecha: object
+  longitud: float64
+  latitud: float64
+  descripcion: float64
+  fecha_carga: object
+
+=== MUESTRA FILA 0 ===
+  id_registro: np.int64(12839012)
+  pais: 'MX'
+  ciudad: 'Cancún'
+  clasificacion_reporte: np.int64(1)
+  reporte_por_municipio: np.False_
+  confianza: np.int64(3)
+  fiabilidad: np.int64(10)
+  tipo: 'HAZARD'
+  identificador_unico_universal: '26b226bd-efa5-4ec6-ba31-5a27e619638d'
+  tipo_camino: np.int64(2)
+  magvar: np.int64(332)
+  subtipo: 'HAZARD_ON_ROAD_POT_HOLE'
+  calle: 'Río Hondo'
+  fecha: '2026-03-22 06:34:08+00:00'
+  longitud: np.float64(-86.848503)
+  latitud: np.float64(21.186955)
+  descripcion: np.float64(nan)
+  fecha_carga: '2026-03-27 20:03:03.273577+00:00'
+
+=== NULOS POR COLUMNA ===
+Total filas: 5590090
+  id_registro: 0 nulos (0.0%)
+  pais: 0 nulos (0.0%)
+  ciudad: 33332 nulos (0.6%)
+  clasificacion_reporte: 0 nulos (0.0%)
+  reporte_por_municipio: 0 nulos (0.0%)
+  confianza: 0 nulos (0.0%)
+  fiabilidad: 0 nulos (0.0%)
+  tipo: 0 nulos (0.0%)
+  identificador_unico_universal: 0 nulos (0.0%)
+  tipo_camino: 0 nulos (0.0%)
+  magvar: 0 nulos (0.0%)
+  subtipo: 129707 nulos (2.3%)
+  calle: 285899 nulos (5.1%)
+  fecha: 0 nulos (0.0%)
+  longitud: 0 nulos (0.0%)
+  latitud: 0 nulos (0.0%)
+  descripcion: 5540363 nulos (99.1%)
+  fecha_carga: 0 nulos (0.0%)

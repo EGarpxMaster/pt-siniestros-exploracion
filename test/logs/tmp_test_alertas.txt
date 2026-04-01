@@ -1,0 +1,25 @@
+﻿Filas cargadas: 1000
+
+=== RESULTADO ===
+Columnas (23): ['id_registro', 'ciudad', 'clasificacion_reporte', 'confianza', 'fiabilidad', 'tipo', 'tipo_camino', 'subtipo', 'calle', 'longitud', 'latitud', 'fecha_local', 'anio', 'mes', 'dia', 'hora', 'dia_semana', 'turno', 'fecha_carga_date', 'tipo_es', 'subtipo_es', 'tipo_camino_es', 'municipio']
+
+Muestra:
+                                  0  ...                    4
+calle                     RÝo Hondo  ...       Paseo El ╔bano
+tipo                         HAZARD  ...               HAZARD
+tipo_es                     Peligro  ...              Peligro
+subtipo_es                    Bache  ...                Bache
+fecha_local     2026-03-22 01:34:08  ...  2026-03-20 12:40:58
+hora                              1  ...                   12
+turno                     Madrugada  ...                Tarde
+dia_semana                  Domingo  ...              Viernes
+anio                           2026  ...                 2026
+mes                               3  ...                    3
+tipo_camino_es          Calle local  ...          Calle local
+municipio             Benito Jußrez  ...        Benito Jußrez
+
+[12 rows x 5 columns]
+
+┐Nulos en tipo_es?    0
+┐Nulos en subtipo_es? 20 (esperado: 0 sin subtype)
+Valores de turno:     {'Tarde': 414, 'Ma±ana': 361, 'Madrugada': 205, 'Noche': 20}
