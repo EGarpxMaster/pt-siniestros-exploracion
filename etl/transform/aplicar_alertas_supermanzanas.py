@@ -31,8 +31,8 @@ def execute_alertas_supermanzanas():
     # ---------------------------------------------------------
     # 2. PROCESAR ALERTAS EVENTOS (VISTA MATERIALIZADA)
     # ---------------------------------------------------------
-    print("-> Descargando eventos recientes (mv_alertas_eventos)...")
-    df_ev = pd.read_sql('SELECT * FROM "semaforos_PT"."mv_alertas_eventos"', engine)
+    print("-> Descargando eventos recientes (mv_alertas)...")
+    df_ev = pd.read_sql('SELECT * FROM "semaforos_PT"."mv_alertas"', engine)
     print(f"-> Asignando {len(df_ev)} eventos a supermanzanas...")
     
     puntos_ev = [Point(lon, lat) for lon, lat in zip(df_ev['longitud_aprox'], df_ev['latitud_aprox'])]
@@ -58,8 +58,8 @@ def execute_alertas_supermanzanas():
     # ---------------------------------------------------------
     # 3. PROCESAR ALERTAS HISTORICAS (VISTA MATERIALIZADA)
     # ---------------------------------------------------------
-    print("-> Descargando histórico (mv_alertas_historico_heatmap)...")
-    df_hist = pd.read_sql('SELECT * FROM "semaforos_PT"."mv_alertas_historico_heatmap"', engine)
+    print("-> Descargando histórico (mv_alertas_historico)...")
+    df_hist = pd.read_sql('SELECT * FROM "semaforos_PT"."mv_alertas_historico"', engine)
     print(f"-> Asignando {len(df_hist)} históricos a supermanzanas...")
     
     puntos_hist = [Point(lon, lat) for lon, lat in zip(df_hist['lon_val'], df_hist['lat_val'])]
@@ -89,21 +89,26 @@ def execute_alertas_supermanzanas():
     # ---------------------------------------------------------
     # 4. SUBIR A BASE DE DATOS
     # ---------------------------------------------------------
-    print("-> Subiendo Vistas pre-calculadas (vw_alertas_eventos_opt y vw_alertas_historico_opt)...")
+    print("-> Subiendo Vistas pre-calculadas (vw_alertas y vw_alertas_historico)...")
     with engine.connect() as conn:
+        # Eliminar vistas con nombres antiguos
         conn.execute(text('DROP TABLE IF EXISTS "semaforos_PT".vw_alertas_eventos_opt'))
+        conn.execute(text('DROP TABLE IF EXISTS "semaforos_PT".vw_alertas_siniestros'))
         conn.execute(text('DROP TABLE IF EXISTS "semaforos_PT".vw_alertas_historico_opt'))
+        # Eliminar vistas actuales para recrear
+        conn.execute(text('DROP TABLE IF EXISTS "semaforos_PT".vw_alertas'))
+        conn.execute(text('DROP TABLE IF EXISTS "semaforos_PT".vw_alertas_historico'))
 
-    df_ev.to_sql('vw_alertas_eventos_opt', engine, schema='semaforos_PT', if_exists='replace', index=False)
-    df_hist.to_sql('vw_alertas_historico_opt', engine, schema='semaforos_PT', if_exists='replace', index=False, chunksize=10000)
+    df_ev.to_sql('vw_alertas', engine, schema='semaforos_PT', if_exists='replace', index=False)
+    df_hist.to_sql('vw_alertas_historico', engine, schema='semaforos_PT', if_exists='replace', index=False, chunksize=10000)
 
     print("-> Indexando tablas optimizadas...")
     with engine.connect() as conn:
-        conn.execute(text('CREATE INDEX idx_vw_ale_ev_sm ON "semaforos_PT".vw_alertas_eventos_opt (id_supermanzana)'))
-        conn.execute(text('CREATE INDEX idx_vw_ale_ev_fecha ON "semaforos_PT".vw_alertas_eventos_opt (primera_alerta)'))
+        conn.execute(text('CREATE INDEX idx_vw_ale_ev_sm ON "semaforos_PT".vw_alertas (id_supermanzana)'))
+        conn.execute(text('CREATE INDEX idx_vw_ale_ev_fecha ON "semaforos_PT".vw_alertas (primera_alerta)'))
         
-        conn.execute(text('CREATE INDEX idx_vw_ale_hist_sm ON "semaforos_PT".vw_alertas_historico_opt (id_supermanzana)'))
-        conn.execute(text('CREATE INDEX idx_vw_ale_hist_fecha ON "semaforos_PT".vw_alertas_historico_opt (fecha_cierre)'))
+        conn.execute(text('CREATE INDEX idx_vw_ale_hist_sm ON "semaforos_PT".vw_alertas_historico (id_supermanzana)'))
+        conn.execute(text('CREATE INDEX idx_vw_ale_hist_fecha ON "semaforos_PT".vw_alertas_historico (fecha_cierre)'))
         
     print("¡Proceso de Integración Espacial de Alertas Completado!")
 

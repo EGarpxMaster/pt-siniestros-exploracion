@@ -33,7 +33,7 @@ def extract_specific_data(output_dir="data"):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    tablas_a_extraer = ['mv_alertas_eventos', 'semaforos']
+    tablas_a_extraer = ['mv_alertas', 'semaforos']
     
     esquema_dir = os.path.join(output_dir, esquema)
     if not os.path.exists(esquema_dir):
@@ -61,7 +61,7 @@ def extract_specific_data(output_dir="data"):
                 df['lon'] = longitudes
                 df = df.drop(columns=['geometry'], errors='ignore')
 
-            elif tabla == 'mv_alertas_eventos':
+            elif tabla == 'mv_alertas':
                 print("     Organizando vista materializada nativa en español...")
 
                 df['primera_alerta_local'] = pd.to_datetime(df['primera_alerta'], utc=True).dt.tz_convert('America/Cancun').dt.tz_localize(None)
@@ -91,7 +91,7 @@ def extract_specific_data(output_dir="data"):
 
                 print(f"     Listo. Columnas preparadas: {len(df.columns)}")
             
-            output_name = f"{'alertas' if tabla == 'mv_alertas_eventos' else tabla}.csv"
+            output_name = f"{'alertas' if tabla == 'mv_alertas' else tabla}.csv"
             output_file = os.path.join(esquema_dir, output_name)
             
             df.to_csv(output_file, index=False)
