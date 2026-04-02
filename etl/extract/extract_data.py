@@ -24,7 +24,7 @@ def extract_data(output_dir="data"):
         os.makedirs(output_dir)
 
     # Las nuevas vistas optimizadas físicamente en PostgreSQL
-    tablas_permitidas = ['vw_supermanzanas_opt', 'mv_alertas_historico_heatmap', 'mv_alertas_eventos', 'vw_semaforos_opt']
+    tablas_permitidas = ['vw_supermanzanas', 'vw_alertas_historico', 'vw_alertas', 'vw_semaforos']
 
     esquema_dir = os.path.join(output_dir, esquema)
     if not os.path.exists(esquema_dir):
@@ -39,17 +39,9 @@ def extract_data(output_dir="data"):
         try:
             df = pd.read_sql_query(query, engine)
             
-            # Renombrar archivos locales para que el dashboard Streamlit siga funcionando igual
-            if tabla == 'mv_alertas_historico_heatmap':
-                output_name = "alertas_historico.csv"
-            elif tabla == 'vw_supermanzanas_opt':
-                output_name = "supermanzanas.csv"
-            elif tabla == 'mv_alertas_eventos':
-                output_name = "alertas.csv"
-            elif tabla == 'vw_semaforos_opt':
-                output_name = "semaforos.csv"
-            else:
-                output_name = f"{tabla}.csv"
+            # Renombrar archivos locales dinámicamente quitando 'vw_'
+            nombre_base = tabla.replace('vw_', '')
+            output_name = f"{nombre_base}.csv"
 
             output_file = os.path.join(esquema_dir, output_name)
             df.to_csv(output_file, index=False)

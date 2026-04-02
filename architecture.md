@@ -17,19 +17,19 @@ graph TD
     end
 
     %% Procesamiento DDL Nativo
-    A -->|etl/transform/aplicar_alertas_pg.py| E[mv_alertas_eventos]
-    B -->|etl/transform/aplicar_fase3_pg.py| F[mv_alertas_historico_heatmap]
+    A -->|etl/transform/aplicar_alertas_pg.py| E[mv_alertas]
+    B -->|etl/transform/aplicar_fase3_pg.py| F[mv_alertas_historico]
 
     %% Procesamiento Espacial (Shapely)
     C -->|etl/transform/aplicar_fase3_pg.py| G(Spatial Join)
     D -->|etl/transform/aplicar_fase3_pg.py| G
     E -->|etl/transform/aplicar_alertas_supermanzanas.py| G
     F -->|etl/transform/aplicar_alertas_supermanzanas.py| G
-    
-    G --> H[vw_semaforos_opt]
-    G --> I[vw_supermanzanas_opt]
-    G --> N[vw_alertas_eventos_opt]
-    G --> O[vw_alertas_historico_opt]
+
+    G --> H[vw_semaforos]
+    G --> I[vw_supermanzanas]
+    G --> N[vw_alertas]
+    G --> O[vw_alertas_historico]
 
     %% Vistas Optimizadas
     subgraph PostgreSQL Optimized
@@ -56,7 +56,7 @@ graph TD
 
 ---
 
-## 🏗️ 1. Orígenes de Datos (Tablas Base)
+## 1. Orígenes de Datos (Tablas Base)
 
 Las tablas originales en crudo dentro del esquema `semaforos_PT`. No deben manipularse desde el frontend ni extraerse directamente a la API debido a su estructura costosa y tamaño desproporcionado:
 
@@ -69,7 +69,7 @@ Las tablas originales en crudo dentro del esquema `semaforos_PT`. No deben manip
 
 ---
 
-## ⚙️ 2. Motor de Transformación (Scripts Core)
+## 2. Motor de Transformación (Scripts Core)
 
 Hemos abstraído todo el trabajo iterativo en dos scripts de `Python/SQLAlchemy`. Estos scripts inyectan la lógica espacial y matemática a PostgreSQL y **solo necesitan ejecutarse cuando ingresa un nuevo bloque gigante de datos**.
 
@@ -84,34 +84,34 @@ Procesa las partes que PostgreSQL puro no pudo hacer por carecer de PostGIS y el
 
 ---
 
-## ⚡ 3. Capa de Alto Rendimiento (Base de Datos Optimizada)
+## 3. Capa de Alto Rendimiento (Base de Datos Optimizada)
 
 El Dashboard **nunca lee el Crudo**. Se alimenta de este esquema de vistas físicas altamente optimizadas con Índices B-Tree incrustados en sus coordenadas y fechas para filtrado atómico.
 
 > [!NOTE]
-> Las vistas incluyen un diccionario nativo Español-Hardcodeado `(tipo_es, subtipo_es)` para homogenizar `JAM` y `HAZARD` de su origen inglés, incluyendo salvaguardias (`COALESCE`) por si Waze olvidó etiquetar sub-tipos.
+> Las vistas incluyen un diccionario nativo Español-Hardcodeado `(tipo, subtipo)` para homogenizar `JAM` y `HAZARD` de su origen inglés, incluyendo salvaguardias (`COALESCE`) por si Waze olvidó etiquetar sub-tipos.
 
-### A. Alertas Actuales Optimizadas: `vw_alertas_eventos_opt`
+### A. Alertas Actuales Optimizadas: `vw_alertas`
 Tabla plana pre-calculada a partir de los eventos. Contiene a qué supermanzana pertenece cada alerta y agrupa reportes con base en el tiempo (< 12 hrs).
 - *Columnas Principales*: `tipo`, `subtipo`, `latitud_aprox`, `longitud_aprox`, `primera_alerta`, `duracion_horas`, `id_supermanzana`.
 
-### B. Alertas Histórico Heatmap: `vw_alertas_historico_opt`
+### B. Alertas Histórico: `vw_alertas_historico`
 Tabla optimizada con puntos calientes listos para mapear mediante calor interactivo. Incluye parseo de texto corrupto a fechas nativas y join a su respectiva supermanzana.
-- *Columnas Principales*: `tipo_es`, `subtipo_es`, `lon_val`, `lat_val`, `fecha_cierre`, `id_supermanzana`.
+- *Columnas Principales*: `tipo`, `subtipo`, `lon_val`, `lat_val`, `fecha_cierre`, `id_supermanzana`.
 
-### C. Tabla Pre-calculada: `vw_semaforos_opt`
+### C. Tabla Pre-calculada: `vw_semaforos`
 Semáforos listos para filtrar por Supermanzana.
 - *Columnas Principales*: `id`, `Identificador`, `ubicacion`, `lat`, `lon`, `id_supermanzana`.
 
-### D. Tabla Pre-calculada: `vw_supermanzanas_opt`
+### D. Tabla Pre-calculada: `vw_supermanzanas`
 Áreas de Cancún preparadas para reaccionar a clicks o centrado interactivo con centroides lat/lon ya disponibles.
 - *Columnas Principales*: `id_supermanzana`, `pobtot`, `lat_centroide`, `lon_centroide`
 
 ---
 
-## 📥 4. Pipeline Final de Extracción (`extract_data.py`)
+## 4. Pipeline Final de Extracción (`extract_data.py`)
 
-Antes, tu sistema tenía códigos fragmentados tratando de limpiar cosas sobre la marcha. 
+Antes, tu sistema tenía códigos fragmentados tratando de limpiar cosas sobre la marcha.
 
 El nuevo pipeline final, `extract_data.py`, asume que el backend hace todo el trabajo fuerte. Simplemente acude a la base de datos PostgreSQL, lee las 4 vistas maestras optimizadas, y las expulsa a nivel de disco bajo el formato `CSV` respetando el esquema original de nombres (para no quebrar tu API de Streamlit):
 - `data/semaforos_PT/alertas.csv`

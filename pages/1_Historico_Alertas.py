@@ -1,45 +1,42 @@
 import streamlit as st
 import pandas as pd
 import folium
-from folium.plugins import HeatMap
-import streamlit.components.v1 as components
+from folium.plugins import HeatMap, MarkerCluster
+from streamlit_folium import st_folium
 import plotly.express as px
 import os
+from shapely import wkb
+import json
 
-st.set_page_config(page_title="Deep Dive - Histórico de Alertas", layout="wide")
-st.title("Análisis Profundo: Histórico de Alertas")
-st.markdown("Estudio detallado de factores de siniestralidad, análisis temporal, categórico y geográfico basándonos en el `alertas_historico.csv`.")
+st.set_page_config(page_title="Histórico de Alertas - SISV", layout="wide")
+st.title("🚦 Análisis Histórico Interactivo")
+st.markdown("Explora la siniestralidad vial mediante un mapa de calor por Supermanzanas y realiza un análisis detallado por cruceros.")
 
-data_path = os.path.join("data", "semaforos_PT", "alertas_historico.csv")
+# --- Rutas de Datos ---
+DATA_DIR = os.path.join("data", "semaforos_PT")
+HISTORICO_PATH = os.path.join(DATA_DIR, "alertas_historico.csv")
+SEMAFOROS_PATH = os.path.join(DATA_DIR, "semaforos.csv")
+SUPERMANZANAS_PATH = os.path.join(DATA_DIR, "supermanzanas.csv")
 
-# Diccionario para meses en español
-meses_es = {
-    'ene': '01', 'feb': '02', 'mar': '03', 'abr': '04', 'may': '05', 'jun': '06',
-    'jul': '07', 'ago': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dic': '12'
-}
+# --- Gestión de Estado ---
+if 'sm_activa' not in st.session_state:
+    st.session_state.sm_activa = None
+if 'sem_activo' not in st.session_state:
+    st.session_state.sem_activo = None
 
 @st.cache_data
+<<<<<<< HEAD
+def load_historical_data():
+    if not os.path.exists(HISTORICO_PATH): return None
+    df = pd.read_csv(HISTORICO_PATH)
+    # Nueva columna estandarizada
+    df['fecha_cierre'] = pd.to_datetime(df['fecha_cierre'], errors='coerce')
+=======
 def load_and_process_data(filepath):
     df = pd.read_csv(filepath)
     
-    # 1. Utilizar las columnas optimizadas por la Vista SQL si existen
-    if 'Type_Traducido' in df.columns:
-        df['Type'] = df['Type_Traducido']
-    if 'Subtype_Traducido' in df.columns:
-        df['Subtype'] = df['Subtype_Traducido']
-        
-    # Si por alguna razon falla la vista, hacemos fallback legacy para coords
-    if 'lon' not in df.columns and 'Location' in df.columns:
-        coords = df['Location'].astype(str).str.extract(r'(?i)Point\(([-.\d]+)\s+([-.\d]+)\)')
-        df['lon'] = coords[0].astype(float)
-        df['lat'] = coords[1].astype(float)
-        
-    # Variables derivadas de tiempo
-    if 'Fecha_Parseada' in df.columns:
-        # La vista SQL ya entrega la fecha parseada
-        df['Fecha_Parseada'] = pd.to_datetime(df['Fecha_Parseada'], errors='coerce')
-    elif 'Date' in df.columns:
-        # Fallback si no está la vista SQL
+    # 1. Parsear Fechas Españolas
+    if 'Date' in df.columns:
         def parse_date(d_str):
             try:
                 parts = str(d_str).lower().strip().split()
@@ -51,264 +48,238 @@ def load_and_process_data(filepath):
                 return pd.to_datetime(d_str, errors='coerce')
             except:
                 return pd.NaT
+        
         df['Fecha_Parseada'] = df['Date'].apply(parse_date)
         
-    if 'Type' in df.columns:
-        # Fallback si Type_Traducido no estaba
-        if 'Type_Traducido' not in df.columns:
-            mapa_tipos = {'JAM': 'Tráfico', 'HAZARD': 'Peligro', 'ACCIDENT': 'Accidente', 'ROAD_CLOSED': 'Vía Cerrada'}
-            df['Type'] = df['Type'].map(mapa_tipos).fillna(df['Type'])
-        
-        df['Es_Accidente'] = (df['Type'] == 'Accidente').astype(int)
-        
-    if 'Subtype' in df.columns and 'Subtype_Traducido' not in df.columns:
-        mapa_subtipos = {
-            'JAM_STAND_STILL_TRAFFIC': 'Tráfico Detenido', 'JAM_HEAVY_TRAFFIC': 'Tráfico Pesado',
-            'JAM_MODERATE_TRAFFIC': 'Tráfico Moderado', 'JAM_LIGHT_TRAFFIC': 'Tráfico Ligero',
-            'HAZARD_ON_ROAD_POT_HOLE': 'Baches', 'HAZARD_ON_SHOULDER_CAR_STOPPED': 'Auto Detenido (Acotamiento)',
-            'HAZARD_ON_ROAD_CAR_STOPPED': 'Auto Detenido', 'HAZARD_ON_ROAD': 'Peligro en Vía',
-            'HAZARD_ON_ROAD_CONSTRUCTION': 'Obras Viales', 'HAZARD_ON_ROAD_OBJECT': 'Objeto en Vía',
-            'HAZARD_ON_ROAD_TRAFFIC_LIGHT_FAULT': 'Semáforo Descompuesto', 'HAZARD_WEATHER_FLOOD': 'Inundación',
-            'HAZARD_WEATHER': 'Clima Severo / Lluvia', 'ACCIDENT_MAJOR': 'Accidente Mayor', 'ACCIDENT_MINOR': 'Accidente Menor'
-        }
-        df['Subtype'] = df['Subtype'].map(mapa_subtipos).fillna(df['Subtype'])
-
-    # Creación de variables estandarizadas para dashboards (necesitan la fecha parseada si o si)
-    if 'Fecha_Parseada' in df.columns:
         meses_nombres = {1:'Enero', 2:'Febrero', 3:'Marzo', 4:'Abril', 5:'Mayo', 6:'Junio', 
                          7:'Julio', 8:'Agosto', 9:'Septiembre', 10:'Octubre', 11:'Noviembre', 12:'Diciembre'}
         dias_nombres = {0:'Lunes', 1:'Martes', 2:'Miércoles', 3:'Jueves', 4:'Viernes', 5:'Sábado', 6:'Domingo'}
         
         df['Mes'] = df['Fecha_Parseada'].dt.month.map(meses_nombres)
-        df['Mes_Num'] = df['Fecha_Parseada'].dt.month
         df['Dia_Semana'] = df['Fecha_Parseada'].dt.dayofweek.map(dias_nombres)
-        df['Orden_Dia'] = df['Fecha_Parseada'].dt.dayofweek
+        df['Orden_Dia'] = df['Fecha_Parseada'].dt.dayofweek # Para ordenar en gráficas
         df['Trimestre'] = df['Fecha_Parseada'].dt.to_period('Q').astype(str)
 
+    # 2. Parsear Coordenadas "Point(lon lat)"
+    if 'Location' in df.columns:
+        coords = df['Location'].astype(str).str.extract(r'(?i)Point\(([-.\d]+)\s+([-.\d]+)\)')
+        df['lon'] = coords[0].astype(float)
+        df['lat'] = coords[1].astype(float)
+
+    # 3. Traducir Tipos y Subtipos
+    if 'Type' in df.columns:
+        mapa_tipos = {
+            'JAM': 'Tráfico',
+            'HAZARD': 'Peligro',
+            'ACCIDENT': 'Accidente',
+            'ROAD_CLOSED': 'Vía Cerrada'
+        }
+        df['Type'] = df['Type'].map(mapa_tipos).fillna(df['Type'])
+        
+        # Crear variable numérica binaria para correlación
+        df['Es_Accidente'] = (df['Type'] == 'Accidente').astype(int)
+        
+    if 'Fecha_Parseada' in df.columns:
+        df['Mes_Num'] = df['Fecha_Parseada'].dt.month
+
+    if 'Subtype' in df.columns:
+        mapa_subtipos = {
+            'JAM_STAND_STILL_TRAFFIC': 'Tráfico Detenido',
+            'JAM_HEAVY_TRAFFIC': 'Tráfico Pesado',
+            'JAM_MODERATE_TRAFFIC': 'Tráfico Moderado',
+            'JAM_LIGHT_TRAFFIC': 'Tráfico Ligero',
+            'HAZARD_ON_ROAD_POT_HOLE': 'Baches',
+            'HAZARD_ON_SHOULDER_CAR_STOPPED': 'Auto Detenido (Acotamiento)',
+            'HAZARD_ON_ROAD_CAR_STOPPED': 'Auto Detenido',
+            'HAZARD_ON_ROAD': 'Peligro en Vía',
+            'HAZARD_ON_ROAD_CONSTRUCTION': 'Obras Viales',
+            'HAZARD_ON_ROAD_OBJECT': 'Objeto en Vía',
+            'HAZARD_ON_ROAD_TRAFFIC_LIGHT_FAULT': 'Semáforo Descompuesto',
+            'HAZARD_WEATHER_FLOOD': 'Inundación',
+            'HAZARD_WEATHER': 'Clima Severo / Lluvia',
+            'ACCIDENT_MAJOR': 'Accidente Mayor',
+            'ACCIDENT_MINOR': 'Accidente Menor'
+        }
+        df['Subtype'] = df['Subtype'].map(mapa_subtipos).fillna(df['Subtype'])
+
+>>>>>>> parent of b2a9f5b (fix: graphs and optimization)
     return df
 
-if not os.path.exists(data_path):
-    st.info("El archivo `alertas_historico.csv` no se encuentra.")
+@st.cache_data
+def load_catalogos():
+    df_sem = pd.read_csv(SEMAFOROS_PATH) if os.path.exists(SEMAFOROS_PATH) else pd.DataFrame()
+    df_sm = pd.read_csv(SUPERMANZANAS_PATH) if os.path.exists(SUPERMANZANAS_PATH) else pd.DataFrame()
+    
+    # Pre-procesar GeoJSON para Choropleth
+    geojson_sm = {"type": "FeatureCollection", "features": []}
+    if not df_sm.empty and 'geom' in df_sm.columns:
+        for _, row in df_sm.iterrows():
+            try:
+                geom = wkb.loads(str(row['geom']), hex=True)
+                feature = {
+                    "type": "Feature",
+                    "id": str(row['id_supermanzana']),
+                    "properties": {
+                        "id_supermanzana": str(row['id_supermanzana']), 
+                        "pobtot": row['pobtot']
+                    },
+                    "geometry": geom.__geo_interface__
+                }
+                geojson_sm["features"].append(feature)
+            except: continue
+            
+    return df_sem, df_sm, geojson_sm
+
+def reset_view():
+    st.session_state.sm_activa = None
+    st.session_state.sem_activo = None
+
+# --- Carga de Datos ---
+df_hist = load_historical_data()
+df_sem, df_sm, geojson_sm = load_catalogos()
+
+if df_hist is None:
+    st.error("No se encontró el archivo de histórico de alertas.")
+    st.stop()
+
+# --- Sidebar: Filtros Globales ---
+st.sidebar.header("Filtros de Análisis")
+min_date = df_hist['fecha_cierre'].min()
+max_date = df_hist['fecha_cierre'].max()
+
+# Selección de fecha con validación
+rango = st.sidebar.date_input("Periodo de Observación", 
+                             [max_date - pd.Timedelta(days=30), max_date], 
+                             min_value=min_date, max_value=max_date)
+
+if isinstance(rango, list) and len(rango) == 2:
+    start_date, end_date = pd.to_datetime(rango[0]), pd.to_datetime(rango[1])
+    df_filtrado = df_hist[(df_hist['fecha_cierre'] >= start_date) & (df_hist['fecha_cierre'] <= end_date)]
 else:
-    try:
-        with st.spinner("Cargando y procesando la totalidad del histórico de alertas (utilizando caché para máximo rendimiento)..."):
-            df = load_and_process_data(data_path)
-            
-        st.write(f"### Análisis Dinámico sobre el histórico completo de **{len(df):,}** registros.")
+    df_filtrado = df_hist
+
+st.sidebar.button("Reiniciar Vista Mapa 🏠", on_click=reset_view)
+
+# --- Métricas Generales ---
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("Total Alertas", len(df_filtrado))
+m2.metric("Siniestros", len(df_filtrado[df_filtrado['tipo'] == 'Accidente']))
+m3.metric("Peligros", len(df_filtrado[df_filtrado['tipo'] == 'Peligro']))
+m4.metric("Supermanzanas Impactadas", df_filtrado['id_supermanzana'].nunique())
+
+# --- Cuerpo Principal ---
+tab_mapa, tab_stats, tab_raw = st.tabs(["📍 Mapa Interactivo", "📊 Estadísticas", "📋 Datos"])
+
+with tab_mapa:
+    st.subheader("Mapa de Calor y Localización por Supermanzanas")
+    
+    if not st.session_state.sm_activa:
+        st.info("💡 Haz click en una Supermanzana en el mapa para ver el detalle de cruceros.")
+    else:
+        st.success(f"📍 Viendo detalle de Supermanzana: {st.session_state.sm_activa}")
+
+    # Calcular densidad por SM para Choropleth
+    sm_stats = df_filtrado.groupby('id_supermanzana').size().reset_index(name='conteo')
+    
+    # Lógica de Mapa
+    if st.session_state.sm_activa:
+        # 1. Vista de Detalle (Zoom en la SM elegida)
+        centro_sm = df_sm[df_sm['id_supermanzana'] == st.session_state.sm_activa]
+        m = folium.Map(location=[centro_sm.iloc[0]['lat_centroide'], centro_sm.iloc[0]['lon_centroide']], zoom_start=15)
         
-        tab1, tab2, tab3, tab4 = st.tabs(["Análisis Temporal", "Correlación y Categórico", "Mapa de Calor", "Datos Procesados"])
+        # Capa de Semáforos
+        df_sem_sm = df_sem[df_sem['id_supermanzana'] == st.session_state.sm_activa]
+        for _, sem in df_sem_sm.iterrows():
+            folium.CircleMarker(
+                location=[sem['lat'], sem['lon']],
+                radius=8, color='black', fill=True, fill_color='yellow',
+                popup=f"Semáforo: {sem['Identificador']}\nUbicación: {sem['ubicacion']}",
+                tooltip=f"🚦 {sem['Identificador']}"
+            ).add_to(m)
+            
+        # Capa de Alertas
+        df_ale_sm = df_filtrado[df_filtrado['id_supermanzana'] == st.session_state.sm_activa]
         
-        with tab1:
-            st.subheader("Tendencia Histórica de Siniestralidad")
-            df_siniestros = df[df['Type'] == 'Accidente'].dropna(subset=['Fecha_Parseada'])
-            if not df_siniestros.empty and 'Fecha_Parseada' in df.columns:
-                max_date = df_siniestros['Fecha_Parseada'].max()
-                
-                max_date_only = max_date.date()
-                min_date_only = df_siniestros['Fecha_Parseada'].min().date()
-                
-                # Opciones de filtrado
-                opciones_periodo = ["Último Mes", "Último Trimestre", "Último Semestre", "Último Año", "Histórico Completo", "Personalizado"]
-                
-                def on_date_change():
-                    # Si el usuario hace clic o modifica el rango, cambiamos el selector a Personalizado
-                    st.session_state.periodo_sel = "Personalizado"
+        # Filtro Proximidad si hay semáforo seleccionado
+        if st.session_state.sem_activo:
+            target_sem = df_sem[df_sem['Identificador'] == st.session_state.sem_activo].iloc[0]
+            # Filtro simple por radio cuadrado (aprox 200m)
+            df_ale_sm = df_ale_sm[
+                (abs(df_ale_sm['lat_val'] - target_sem['lat']) < 0.002) & 
+                (abs(df_ale_sm['lon_val'] - target_sem['lon']) < 0.002)
+            ]
+            st.warning(f"Filtrando alertas cercanas al semáforo {st.session_state.sem_activo}")
 
-                col_filtro, col_fechas = st.columns(2)
-                
-                with col_filtro:
-                    periodo_sel = st.selectbox("Periodo Rápidos", options=opciones_periodo, key='periodo_sel')
-                
-                # Determinar rango de fechas sugerido por el selector
-                if periodo_sel == "Último Mes":
-                    current_dates = [(max_date - pd.DateOffset(months=1)).date(), max_date_only]
-                elif periodo_sel == "Último Trimestre":
-                    current_dates = [(max_date - pd.DateOffset(months=3)).date(), max_date_only]
-                elif periodo_sel == "Último Semestre":
-                    current_dates = [(max_date - pd.DateOffset(months=6)).date(), max_date_only]
-                elif periodo_sel == "Último Año":
-                    current_dates = [(max_date - pd.DateOffset(years=1)).date(), max_date_only]
-                elif periodo_sel == "Histórico Completo":
-                    current_dates = [min_date_only, max_date_only]
-                else: # Personalizado
-                    if 'rango_fechas_key' in st.session_state and st.session_state.rango_fechas_key:
-                        current_dates = st.session_state.rango_fechas_key
-                    else:
-                        current_dates = [min_date_only, max_date_only]
-                    
-                # Validar que def_start no sea menor al mínimo real (Streamlit crashea si sales de límites)
-                if isinstance(current_dates, tuple) or isinstance(current_dates, list):
-                    current_dates = [max(min_date_only, min(max_date_only, d)) for d in current_dates]
-                else:
-                    current_dates = [max(min_date_only, min(max_date_only, current_dates))]
-                
-                # Si el usuario escogió un periodo rápido (no personalizado), forzamos sobreescribir
-                # el input de fechas para que borre la selección manual anterior
-                if periodo_sel != "Personalizado":
-                    st.session_state['rango_fechas_key'] = current_dates
-                
-                with col_fechas:
-                    # Se usa on_change y key para sincronizar estado visual y selector
-                    rango_fechas = st.date_input("Rango Observado", 
-                                                 value=current_dates, 
-                                                 min_value=min_date_only, 
-                                                 max_value=max_date_only,
-                                                 key='rango_fechas_key',
-                                                 on_change=on_date_change)
-                
-                if len(rango_fechas) == 2:
-                    fecha_inicio = pd.to_datetime(rango_fechas[0])
-                    fecha_fin = pd.to_datetime(rango_fechas[1])
-                    df_siniestros_plot = df_siniestros[(df_siniestros['Fecha_Parseada'] >= fecha_inicio) & (df_siniestros['Fecha_Parseada'] <= fecha_fin)]
-                else:
-                    df_siniestros_plot = df_siniestros
+        marker_cluster = MarkerCluster().add_to(m)
+        for _, ale in df_ale_sm.iterrows():
+            folium.Marker(
+                location=[ale['lat_val'], ale['lon_val']],
+                icon=folium.Icon(color='red' if ale['tipo'] == 'Accidente' else 'orange', icon='info-sign'),
+                popup=f"Tipo: {ale['tipo']}\nSubtipo: {ale['subtipo']}\nCalle: {ale['calle']}",
+                tooltip=ale['tipo']
+            ).add_to(marker_cluster)
 
-                if not df_siniestros_plot.empty:
-                    conteo_diario = df_siniestros_plot.groupby('Fecha_Parseada').size().reset_index(name='Accidentes')
-                    conteo_diario = conteo_diario.sort_values('Fecha_Parseada')
-                    
-                    # Suavizar el ruido con una media móvil (7 días)
-                    conteo_diario['Tendencia Suavizada'] = conteo_diario['Accidentes'].rolling(window=7, min_periods=1).mean()
-                    
-                    fig_trend = px.line(conteo_diario, x='Fecha_Parseada', y=['Accidentes', 'Tendencia Suavizada'], 
-                                        title=f"Evolución de Accidentes", 
-                                        labels={'value': 'Total de Accidentes', 'variable': 'Métrica'},
-                                        color_discrete_sequence=['#A0C4FF', '#2B65E3'])
-                    
-                    fig_trend.update_traces(opacity=0.4, selector=dict(name='Accidentes'))
-                    fig_trend.update_traces(line=dict(width=3), line_shape='spline', selector=dict(name='Tendencia Suavizada'))
-                    
-                    st.plotly_chart(fig_trend, use_container_width=True)
-                else:
-                    st.info("No hay registros en el rango de fechas seleccionado.")
-            else:
-                st.info("No hay suficientes datos de accidentes para trazar una tendencia histórica.")
-                
-            st.subheader("Distribución Temporal de los Eventos")
-            col_t1, col_t2 = st.columns(2)
-            
-            with col_t1:
-                if 'Mes' in df.columns and 'Mes_Num' in df.columns:
-                    conteo_mes = df.groupby(['Mes', 'Mes_Num']).size().reset_index(name='Cantidad')
-                    conteo_mes = conteo_mes.sort_values('Mes_Num')
-                    fig_mes = px.bar(conteo_mes, x='Mes', y='Cantidad', title="Eventos por Mes", color='Cantidad', color_continuous_scale='Blues')
-                    st.plotly_chart(fig_mes, use_container_width=True)
-            
-            with col_t2:
-                if 'Dia_Semana' in df.columns:
-                    conteo_dia = df.groupby(['Dia_Semana', 'Orden_Dia']).size().reset_index(name='Cantidad')
-                    conteo_dia = conteo_dia.sort_values('Orden_Dia')
-                    fig_dia = px.bar(conteo_dia, x='Dia_Semana', y='Cantidad', title="Eventos por Día de la Semana", color='Cantidad', color_continuous_scale='Blues')
-                    st.plotly_chart(fig_dia, use_container_width=True)
-                    
-        with tab2:
-            st.subheader("Matriz de Correlación: Siniestralidad vs Factores Viales (Por Día)")
-            st.markdown("Esta matriz mide la coocurrencia diaria. Nos indica si los días con más reportes de factores de riesgo coinciden de forma estadística con un aumento en la cantidad de Accidentes (Siniestralidad) ese mismo día.")
-            
-            if 'Type' in df.columns and 'Fecha_Parseada' in df.columns:
-                df_diario = pd.crosstab(df['Fecha_Parseada'], df['Type'])
-                
-                if 'Accidente' in df_diario.columns:
-                    df_diario = df_diario.rename(columns={'Accidente': 'Siniestralidad'})
-                
-                cols_factores = [col for col in ['Tráfico', 'Peligro', 'Vía Cerrada'] if col in df_diario.columns]
-                
-                if 'Siniestralidad' in df_diario.columns and not df_diario.empty and len(cols_factores) > 0:
-                    df_corr = df_diario[['Siniestralidad'] + cols_factores]
-                    matriz = df_corr.corr()
-                    
-                    fig_corr = px.imshow(matriz, text_auto=".2f", aspect="auto", color_continuous_scale='RdBu_r', 
-                                        title="Correlación Diaria (Factores Generales)")
-                    st.plotly_chart(fig_corr, use_container_width=True)
-                    st.info("Toma de decisiones: Valores positivos cercanos a 1 indican que factores de tipo general (Tráfico, Peligros) presentan una correlación directa fuerte con los siniestros de manera sistémica.")
-                else:
-                    st.warning("Faltan datos de siniestros o factores generales para construir la matriz diaria.")
+    else:
+        # 2. Vista Global (Choropleth)
+        m = folium.Map(location=[21.14, -86.85], zoom_start=12)
+        
+        folium.Choropleth(
+            geo_data=geojson_sm,
+            name="Choropleth",
+            data=sm_stats,
+            columns=["id_supermanzana", "conteo"],
+            key_on="feature.id",
+            fill_color="YlOrRd",
+            fill_opacity=0.7,
+            line_opacity=0.2,
+            legend_name="Intensidad de Alertas",
+            highlight=True
+        ).add_to(m)
+        
+        # Tooltips para detección de ID
+        folium.GeoJson(
+            geojson_sm,
+            style_function=lambda x: {'fillColor': '#ffffff00', 'color': 'gray', 'weight': 0.5},
+            tooltip=folium.GeoJsonTooltip(fields=['id_supermanzana'], aliases=['Supermanzana: '])
+        ).add_to(m)
 
-            st.divider()
+    # Renderizado y captura de eventos
+    map_data = st_folium(m, width=1200, height=600, key="mapa_siniestralidad")
 
-            st.subheader("Tipología y Clasificación de Alertas")
-            col_c1, col_c2 = st.columns(2)
-            
-            with col_c1:
-                if 'Type' in df.columns:
-                    conteo_tipo = df['Type'].value_counts().reset_index()
-                    conteo_tipo.columns = ['Tipo', 'Cantidad']
-                    fig_tipo = px.pie(conteo_tipo, values='Cantidad', names='Tipo', title="Proporción por Tipo General", hole=0.4)
-                    st.plotly_chart(fig_tipo, use_container_width=True)
-            
-            with col_c2:
-                if 'Subtype' in df.columns:
-                    conteo_subt = df['Subtype'].dropna().value_counts().head(10).reset_index()
-                    conteo_subt.columns = ['Subtipo', 'Cantidad']
-                    fig_subt = px.bar(conteo_subt, x='Cantidad', y='Subtipo', orientation='h', title="Top 10 Subtipos Específicos", color='Cantidad', color_continuous_scale='Reds')
-                    fig_subt.update_layout(yaxis={'categoryorder':'total ascending'})
-                    st.plotly_chart(fig_subt, use_container_width=True)
-                    
-            if 'Street' in df.columns:
-                st.write("### Calles con Mayor Siniestralidad y Problemas")
-                conteo_calles = df['Street'].dropna().value_counts().head(15).reset_index()
-                conteo_calles.columns = ['Calle / Avenida', 'Cantidad']
-                fig_calles = px.bar(conteo_calles, x='Calle / Avenida', y='Cantidad', title="Top 15 Vías Afectadas", color='Cantidad', color_continuous_scale='Purples')
-                st.plotly_chart(fig_calles, use_container_width=True)
-                
-        with tab3:
-            st.subheader("Mapa de Calor: Capas de Correlación Geográfica")
-            st.markdown("El mapa muestra por defecto la Capa de Accidentes. Usa el control de capas (arriba a la derecha del mapa) para encender otras variables independientes como Tráfico o Peligros y visualizar su correlación espacial.")
-            
-            if 'lat' in df.columns and 'lon' in df.columns:
-                df_heat = df.dropna(subset=['lat', 'lon'])
-                if not df_heat.empty:
-                    centro_lat = df_heat['lat'].mean()
-                    centro_lon = df_heat['lon'].mean()
-                    m_heat = folium.Map(location=[centro_lat, centro_lon], zoom_start=13)
-                    
-                    # Separar por tipos para hacer capas independientes
-                    df_acc = df_heat[df_heat['Type'] == 'Accidente']
-                    df_traf = df_heat[df_heat['Type'] == 'Tráfico']
-                    df_pel = df_heat[df_heat['Type'] == 'Peligro']
-                    
-                    # Muestrear individualmente para que el tráfico no entierre visualmente a los accidentes
-                    max_pts = 4000
-                    if len(df_acc) > max_pts: df_acc = df_acc.sample(max_pts, random_state=42)
-                    if len(df_traf) > max_pts: df_traf = df_traf.sample(max_pts, random_state=42)
-                    if len(df_pel) > max_pts: df_pel = df_pel.sample(max_pts, random_state=42)
-                    
-                    # 1. Capa de Accidentes
-                    fg_acc = folium.FeatureGroup(name="Accidentes (Base)", show=True)
-                    if not df_acc.empty:
-                        HeatMap(df_acc[['lat', 'lon']].values.tolist(), radius=15, blur=10).add_to(fg_acc)
-                    fg_acc.add_to(m_heat)
-                    
-                    # 2. Capa de Tráfico
-                    fg_traf = folium.FeatureGroup(name="Tráfico", show=False)
-                    if not df_traf.empty:
-                        grad_traf = {0.4: 'cyan', 0.65: 'blue', 1: 'darkblue'}
-                        HeatMap(df_traf[['lat', 'lon']].values.tolist(), radius=15, blur=10, gradient=grad_traf).add_to(fg_traf)
-                    fg_traf.add_to(m_heat)
-                    
-                    # 3. Capa de Peligros
-                    fg_pel = folium.FeatureGroup(name="Peligros", show=False)
-                    if not df_pel.empty:
-                        grad_pel = {0.4: 'plum', 0.65: 'magenta', 1: 'purple'}
-                        HeatMap(df_pel[['lat', 'lon']].values.tolist(), radius=15, blur=10, gradient=grad_pel).add_to(fg_pel)
-                    fg_pel.add_to(m_heat)
-                    
-                    folium.LayerControl(collapsed=False).add_to(m_heat)
-                    
-                    # Renderizar mapa de forma nativa en HTML para evitar que los límites de serialización congelen Streamlit
-                    components.html(m_heat._repr_html_(), height=600)
-                else:
-                    st.info("No hay coordenadas válidas para dibujar el mapa. Verifica las columnas de Location.")
-            else:
-                st.info("Es necesario procesar correctamente la columna Location para desplegar el mapa de calor.")
-                
-        with tab4:
-            st.subheader("Datos Procesados En Bruto")
-            st.write("Vista a nivel de registro tras extraer fechas, latitudes y longitudes.")
-            # Ocultamos variables creadas solo para cálculos
-            st.dataframe(df.drop(columns=['Orden_Dia', 'Es_Accidente', 'Mes_Num'], errors='ignore'), use_container_width=True)
+    # --- Procesar Clicks ---
+    if map_data['last_active_drawing']:
+        props = map_data['last_active_drawing'].get('properties')
+        if props and 'id_supermanzana' in props:
+            nueva_sm = props['id_supermanzana']
+            if nueva_sm != st.session_state.sm_activa:
+                st.session_state.sm_activa = nueva_sm
+                st.session_state.sem_activo = None
+                st.rerun()
 
+    if map_data['last_object_clicked_tooltip'] and "🚦" in map_data['last_object_clicked_tooltip']:
+        nuevo_sem = map_data['last_object_clicked_tooltip'].replace("🚦 ", "").strip()
+        if nuevo_sem != st.session_state.sem_activo:
+            st.session_state.sem_activo = nuevo_sem
+            st.rerun()
 
+with tab_stats:
+    st.subheader("Análisis de Tendencias")
+    c1, c2 = st.columns(2)
+    
+    with c1:
+        df_d = df_filtrado.groupby(df_filtrado['fecha_cierre'].dt.date).size().reset_index(name='count')
+        fig1 = px.line(df_d, x='fecha_cierre', y='count', title="Histórico de Alertas", template="plotly_white")
+        st.plotly_chart(fig1, use_container_width=True)
+        
+    with c2:
+        df_t = df_filtrado['tipo'].value_counts().reset_index()
+        fig2 = px.pie(df_t, names='tipo', values='count', hole=0.4, title="Distribución por Categoría")
+        st.plotly_chart(fig2, use_container_width=True)
 
-    except Exception as e:
-        st.error(f"Error procesando el histórico: {e}")
+    df_sub = df_filtrado['subtipo'].value_counts().head(15).reset_index()
+    fig3 = px.bar(df_sub, x='count', y='subtipo', orientation='h', title="Top 15 Subtipos Críticos", color='count')
+    st.plotly_chart(fig3, use_container_width=True)
+
+with tab_raw:
+    st.subheader("Explorador de Datos")
+    st.dataframe(df_filtrado, use_container_width=True)

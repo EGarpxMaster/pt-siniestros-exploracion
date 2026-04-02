@@ -1,0 +1,74 @@
+1. Re-creando Vista Materializada 'mv_alertas' con Traducciones a Español Nativas...
+2. Re-creando Indice B-Tree de Coordenadas...
+Traceback (most recent call last):
+  File "C:\Users\polie\Documents\GitHub\pt-siniestros-exploracion\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\polie\Documents\GitHub\pt-siniestros-exploracion\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+psycopg2.errors.DuplicateTable: relation "idx_mv_alertas_ev_coords" already exists
+
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\polie\Documents\GitHub\pt-siniestros-exploracion\etl\transform\aplicar_alertas_pg.py", line 131, in <module>
+    optimize_alertas()
+    ~~~~~~~~~~~~~~~~^^
+  File "C:\Users\polie\Documents\GitHub\pt-siniestros-exploracion\etl\transform\aplicar_alertas_pg.py", line 123, in optimize_alertas
+    conn.execute(text('CREATE INDEX idx_mv_alertas_ev_coords ON "semaforos_PT"."mv_alertas" (latitud_aprox, longitud_aprox);'))
+    ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\polie\Documents\GitHub\pt-siniestros-exploracion\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1419, in execute
+    return meth(
+        self,
+        distilled_parameters,
+        execution_options or NO_OPTIONS,
+    )
+  File "C:\Users\polie\Documents\GitHub\pt-siniestros-exploracion\.venv\Lib\site-packages\sqlalchemy\sql\elements.py", line 527, in _execute_on_connection
+    return connection._execute_clauseelement(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        self, distilled_params, execution_options
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\polie\Documents\GitHub\pt-siniestros-exploracion\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1641, in _execute_clauseelement
+    ret = self._execute_context(
+        dialect,
+    ...<8 lines>...
+        cache_hit=cache_hit,
+    )
+  File "C:\Users\polie\Documents\GitHub\pt-siniestros-exploracion\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        dialect, context, statement, parameters
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\polie\Documents\GitHub\pt-siniestros-exploracion\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        e, str_statement, effective_parameters, cursor, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\polie\Documents\GitHub\pt-siniestros-exploracion\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 2363, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "C:\Users\polie\Documents\GitHub\pt-siniestros-exploracion\.venv\Lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        cursor, str_statement, effective_parameters, context
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\polie\Documents\GitHub\pt-siniestros-exploracion\.venv\Lib\site-packages\sqlalchemy\engine\default.py", line 952, in do_execute
+    cursor.execute(statement, parameters)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.DuplicateTable) relation "idx_mv_alertas_ev_coords" already exists
+
+[SQL: CREATE INDEX idx_mv_alertas_ev_coords ON "semaforos_PT"."mv_alertas" (latitud_aprox, longitud_aprox);]
+(Background on this error at: https://sqlalche.me/e/20/f405)
